@@ -1,0 +1,32 @@
+{
+  "id": "group-channels",
+  "name": "Group Channels",
+  "version": "1.0.0",
+  "description": "Persistent named channels for org-level discussion. Leadership manages channels; everyone reads and posts in channels they belong to.",
+  "entrypoint": "index.html",
+  "runtime": "static",
+  "storage": "db",
+  "category": "organization",
+  "tags": [
+    "channels",
+    "messaging",
+    "discussion",
+    "organization"
+  ],
+  "data_access": {
+    "reads": ["family.members"],
+    "writes": []
+  },
+  "permissions": {
+    "default_audience": "everyone",
+    "requires_approval": false
+  },
+  "resource_limits": {
+    "max_db_bytes": 52428800,
+    "max_files_bytes": 524288000,
+    "max_store_reads_per_day": 2000,
+    "max_store_writes_per_day": 500
+  },
+  "nav": { "label": "Channels" },
+  "icon": "#️⃣"
+}
