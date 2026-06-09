@@ -1022,7 +1022,8 @@ function updateMentionPopup(ta) {
   const ch = channels.find(c => c.id === currentChannelId);
   if (!ch) { closeMentionPopup(); return; }
   const memberIds = resolveChannelMemberIds(ch, members, channelMembersMap[ch.id] ?? []);
-  const channelMembers = members.filter(m => memberIds.includes(m.id));
+  const memberIdSet = new Set(memberIds);
+  const channelMembers = members.filter(m => memberIdSet.has(m.id));
 
   const filtered = channelMembers.filter(m => m.name.toLowerCase().includes(query));
   if (!filtered.length) { closeMentionPopup(); return; }
