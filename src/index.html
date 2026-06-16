@@ -590,8 +590,8 @@ async function loadMembers() {
 
 async function loadChannels() {
   const [chRes, cmRes] = await Promise.all([
-    db(`SELECT * FROM channels WHERE household_id = current_setting('app.household_id', true)::uuid ORDER BY is_system DESC, name`),
-    db(`SELECT * FROM channel_members WHERE household_id = current_setting('app.household_id', true)::uuid`),
+    db(`SELECT * FROM app_group_channels__channels ORDER BY is_system DESC, name`),
+    db(`SELECT * FROM app_group_channels__channel_members`),
   ]);
 
   channels = chRes.rows ?? [];
@@ -616,7 +616,7 @@ function seedDemoData() {
 async function loadSubscriptions() {
   if (!ME) return;
   const res = await db(
-    `SELECT channel_id FROM channel_subscriptions WHERE household_id = current_setting('app.household_id', true)::uuid AND member_id = ?`,
+    `SELECT channel_id FROM app_group_channels__channel_subscriptions WHERE member_id = ?`,
     [ME.id]
   );
   subscriptions = new Set((res.rows ?? []).map(r => r.channel_id));
@@ -625,7 +625,7 @@ async function loadSubscriptions() {
 async function loadLastRead() {
   if (!ME) return;
   const res = await db(
-    `SELECT channel_id, last_read_at FROM member_last_read WHERE household_id = current_setting('app.household_id', true)::uuid AND member_id = ?`,
+    `SELECT channel_id, last_read_at FROM app_group_channels__member_last_read WHERE member_id = ?`,
     [ME.id]
   );
   lastReadMap = {};
@@ -635,9 +635,9 @@ async function loadLastRead() {
 async function loadMessages(channelId, offset = 0) {
   const res = await db(
     `SELECT m.*, f.id AS f_id, f.file_name, f.mime_type, f.size_bytes, f.file_id
-     FROM messages m
-     LEFT JOIN message_files f ON f.message_id = m.id AND f.household_id = m.household_id
-     WHERE m.channel_id = ? AND m.household_id = current_setting('app.household_id', true)::uuid
+     FROM app_group_channels__messages m
+     LEFT JOIN app_group_channels__message_files f ON f.message_id = m.id
+     WHERE m.channel_id = ?
      ORDER BY m.created_at ASC, m.id ASC
      LIMIT ? OFFSET ?`,
     [channelId, PAGE, offset]
@@ -679,9 +679,8 @@ async function searchMessages(query) {
   const q = `%${query}%`;
   const res = await db(
     `SELECT m.id, m.channel_id, m.author_name, m.body, m.created_at
-     FROM messages m
-     WHERE m.household_id = current_setting('app.household_id', true)::uuid
-       AND lower(m.body) LIKE lower(?)
+     FROM app_group_channels__messages m
+     WHERE lower(m.body) LIKE lower(?)
      ORDER BY m.created_at DESC
      LIMIT 50`,
     [q]
@@ -712,9 +711,9 @@ async function markRead(channelId) {
   const now = new Date().toISOString();
   lastReadMap[channelId] = now;
   await db(
-    `INSERT INTO member_last_read (household_id, channel_id, member_id, last_read_at)
-     VALUES (current_setting('app.household_id', true)::uuid, ?, ?, ?)
-     ON CONFLICT (household_id, channel_id, member_id) DO UPDATE SET last_read_at = EXCLUDED.last_read_at`,
+    `INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT (channel_id, member_id) DO UPDATE SET last_read_at = EXCLUDED.last_read_at`,
     [channelId, ME.id, now]
   );
 }
@@ -1129,16 +1128,16 @@ window.sendMessage = async function() {
 
   try {
     await db(
-      `INSERT INTO messages (household_id, id, channel_id, author_id, author_name, body, created_at)
-       VALUES (current_setting('app.household_id', true)::uuid, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [msgId, currentChannelId, ME.id, ME.name, body, now]
     );
 
     // File inserts in parallel
     await Promise.all(filesToAttach.map(f =>
       db(
-        `INSERT INTO message_files (household_id, id, message_id, file_id, file_name, mime_type, size_bytes, created_at)
-         VALUES (current_setting('app.household_id', true)::uuid, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO app_group_channels__message_files (id, message_id, file_id, file_name, mime_type, size_bytes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [crypto.randomUUID(), msgId, f.id, f.name, f.mime_type, f.file?.size ?? 0, now]
       )
     ));
@@ -1307,32 +1306,32 @@ window.submitChannel = async function(existingId) {
   try {
     if (existingId) {
       await db(
-        `UPDATE channels SET name = ?, description = ?, membership_type = ?, membership_roles = ? WHERE id = ? AND household_id = current_setting('app.household_id', true)::uuid`,
+        `UPDATE app_group_channels__channels SET name = ?, description = ?, membership_type = ?, membership_roles = ? WHERE id = ?`,
         [name, desc, membershipType, membershipRoles, existingId]
       );
       if (membershipType === "custom") {
-        await db(`DELETE FROM channel_members WHERE channel_id = ? AND household_id = current_setting('app.household_id', true)::uuid`, [existingId]);
+        await db(`DELETE FROM app_group_channels__channel_members WHERE channel_id = ?`, [existingId]);
         await Promise.all(customMemberIds.map(mid =>
           db(
-            `INSERT INTO channel_members (household_id, channel_id, member_id) VALUES (current_setting('app.household_id', true)::uuid, ?, ?) ON CONFLICT DO NOTHING`,
+            `INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
             [existingId, mid]
           )
         ));
       } else {
-        await db(`DELETE FROM channel_members WHERE channel_id = ? AND household_id = current_setting('app.household_id', true)::uuid`, [existingId]);
+        await db(`DELETE FROM app_group_channels__channel_members WHERE channel_id = ?`, [existingId]);
       }
     } else {
       const id = crypto.randomUUID();
       const now = new Date().toISOString();
       await db(
-        `INSERT INTO channels (household_id, id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at)
-         VALUES (current_setting('app.household_id', true)::uuid, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+        `INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
         [id, name, slug, desc, membershipType, membershipRoles, ME?.id ?? "", now]
       );
       if (membershipType === "custom") {
         await Promise.all(customMemberIds.map(mid =>
           db(
-            `INSERT INTO channel_members (household_id, channel_id, member_id) VALUES (current_setting('app.household_id', true)::uuid, ?, ?)`,
+            `INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)`,
             [id, mid]
           )
         ));
@@ -1360,7 +1359,7 @@ window.archiveChannel = async function(id) {
   if (!ok) return;
 
   await db(
-    `UPDATE channels SET archived_at = ? WHERE id = ? AND household_id = current_setting('app.household_id', true)::uuid`,
+    `UPDATE app_group_channels__channels SET archived_at = ? WHERE id = ?`,
     [new Date().toISOString(), id]
   );
   await loadChannels();
@@ -1372,7 +1371,7 @@ window.archiveChannel = async function(id) {
 window.unarchiveChannel = async function(id) {
   closeChMenu();
   await db(
-    `UPDATE channels SET archived_at = NULL WHERE id = ? AND household_id = current_setting('app.household_id', true)::uuid`,
+    `UPDATE app_group_channels__channels SET archived_at = NULL WHERE id = ?`,
     [id]
   );
   await loadChannels();
