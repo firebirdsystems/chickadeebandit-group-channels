@@ -690,7 +690,7 @@ async function searchMessages(query) {
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 async function notify(title, body) {
-  await fetch("/api/notifications/send", {
+  await fetch(window.__NOTIFY_URL ?? "/api/notifications/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, body, url: `/run/${APP_ID}?channelId=${currentChannelId}` }),
