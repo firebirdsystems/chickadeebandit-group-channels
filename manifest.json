@@ -28,5 +28,60 @@
     "max_store_writes_per_day": 500
   },
   "nav": { "label": "Channels" },
-  "icon": "#️⃣"
+  "icon": "#️⃣",
+  "admin_config": {
+    "settings_table": "settings",
+    "keys": ["leadership_group_id"]
+  },
+  "db_plaintext_columns": ["membership_type", "membership_roles"],
+  "row_policies": {
+    "settings": {
+      "kind": "app_config"
+    },
+    "channels": {
+      "kind": "owner_or_visibility",
+      "member_column": "created_by",
+      "visibility_column": "visibility",
+      "everyone_values": ["all"],
+      "insert_privileged_only": true,
+      "write_owner_only": true,
+      "bypass_group_setting": {
+        "settings_table": "settings",
+        "settings_key": "leadership_group_id"
+      }
+    },
+    "channel_members": {
+      "kind": "owner_only",
+      "member_column": "member_id",
+      "adults_bypass": false,
+      "insert_privileged_only": true,
+      "bypass_group_setting": {
+        "settings_table": "settings",
+        "settings_key": "leadership_group_id"
+      }
+    },
+    "messages": {
+      "kind": "channel_scoped",
+      "channels_table": "channels",
+      "channel_id_column": "channel_id",
+      "membership_type_column": "membership_type",
+      "membership_roles_column": "membership_roles",
+      "membership_table": "channel_members",
+      "membership_channel_column": "channel_id",
+      "membership_member_column": "member_id",
+      "self_column": "author_id",
+      "all_value": "all",
+      "role_value": "role"
+    },
+    "member_last_read": {
+      "kind": "owner_only",
+      "member_column": "member_id",
+      "adults_bypass": false
+    },
+    "channel_subscriptions": {
+      "kind": "owner_only",
+      "member_column": "member_id",
+      "adults_bypass": false
+    }
+  }
 }
