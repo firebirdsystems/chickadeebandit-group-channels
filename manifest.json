@@ -1,7 +1,7 @@
 {
   "id": "group-channels",
   "name": "Group Channels",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Persistent named channels for org-level discussion. Leadership manages channels; everyone reads and posts in channels they belong to.",
   "entrypoint": "index.html",
   "runtime": "static",
@@ -44,7 +44,7 @@
       "visibility_column": "visibility",
       "everyone_values": ["all"],
       "insert_privileged_only": true,
-      "write_owner_only": true,
+      "write_privileged_only": true,
       "bypass_group_setting": {
         "settings_table": "settings",
         "settings_key": "leadership_group_id"
@@ -73,6 +73,19 @@
       "all_value": "all",
       "role_value": "role"
     },
+    "message_files": {
+      "kind": "channel_scoped",
+      "channels_table": "channels",
+      "channel_id_column": "channel_id",
+      "membership_type_column": "membership_type",
+      "membership_roles_column": "membership_roles",
+      "membership_table": "channel_members",
+      "membership_channel_column": "channel_id",
+      "membership_member_column": "member_id",
+      "self_column": "author_id",
+      "all_value": "all",
+      "role_value": "role"
+    },
     "member_last_read": {
       "kind": "owner_only",
       "member_column": "member_id",
@@ -82,6 +95,20 @@
       "kind": "owner_only",
       "member_column": "member_id",
       "adults_bypass": false
+    }
+  },
+  "subscription_notify": {
+    "subscription_table": "channel_subscriptions",
+    "topic_column": "channel_id",
+    "member_column": "member_id",
+    "eligibility": {
+      "kind": "channel_membership",
+      "channels_table": "channels",
+      "membership_type_column": "membership_type",
+      "membership_roles_column": "membership_roles",
+      "membership_table": "channel_members",
+      "membership_channel_column": "channel_id",
+      "membership_member_column": "member_id"
     }
   }
 }

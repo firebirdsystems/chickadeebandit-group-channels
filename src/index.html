@@ -507,6 +507,7 @@
   <aside class="sidebar">
     <div class="sidebar-header">
       <span class="sidebar-title">Channels</span>
+      <button class="btn-icon" id="settings-btn" title="Leadership settings" style="display:none">⚙️</button>
       <button class="btn-icon" id="new-channel-btn" title="New channel" style="display:none">＋</button>
     </div>
     <div class="sidebar-search">
@@ -532,21 +533,27 @@ import { memberColor, initial, esc, formatRelativeDate,
 import { createFilesHelper } from "/hub-sdk.js";
 
 // ── Globals ───────────────────────────────────────────────────────────────────
-const CONTEXT   = window.__CONTEXT_URL  ?? "";
-const DB        = window.__DB_URL       ?? "";
-const STORE     = window.__STORE_URL    ?? "";
-const FILES_URL = window.__FILES_URL    ?? "";
-const APP_ID    = window.__APP_ID       ?? "group-channels";
-const ME        = window.__CURRENT_MEMBER ?? null;
+const CONTEXT      = window.__CONTEXT_URL  ?? "";
+const DB           = window.__DB_URL       ?? "";
+const STORE        = window.__STORE_URL    ?? "";
+const FILES_URL    = window.__FILES_URL    ?? "";
+const APP_ID       = window.__APP_ID       ?? "group-channels";
+const ME           = window.__CURRENT_MEMBER ?? null;
+const IS_ADMIN     = window.__IS_ADMIN ?? false;
+const ADMIN_CONFIG = window.__ADMIN_CONFIG_URL ?? "";
+const NOTIFY_SUBS  = window.__NOTIFY_SUBSCRIBERS_URL ?? "";
 
 const files = createFilesHelper(FILES_URL);
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let members          = [];
+let groups           = [];           // family.groups: [{ id, name, memberIds }]
+let leadershipGroupId = "";          // settings.leadership_group_id (trust root)
 let channels         = [];
 let channelMembersMap = {}; // channelId → string[]
 let subscriptions    = new Set(); // channel ids the current member subscribes to
-let lastReadMap      = {};  // channelId → ISO timestamp
+let lastReadMap      = {};  // channelId → ISO timestamp (when I last opened it)
+let latestMsgMap     = {};  // channelId → ISO timestamp of the channel's newest message
 let currentChannelId = null;
 let messages         = [];
 let messageOffset    = 0;
@@ -580,12 +587,32 @@ async function loadMembers() {
       { id: "m3", name: "Sam Rivera",   role: "member" },
       { id: "m4", name: "Taylor Kim",   role: "pledge" },
     ];
+    groups = [];
     return;
   }
   try {
-    const res = await fetch(`${CONTEXT}?keys=family.members`);
-    members = ((await res.json())["family.members"]) ?? [];
-  } catch { members = []; }
+    const res = await fetch(`${CONTEXT}?keys=family.members,family.groups`);
+    const data = await res.json();
+    members = data["family.members"] ?? [];
+    groups  = data["family.groups"]  ?? [];
+  } catch { members = []; groups = []; }
+}
+
+// `settings` is the app_config table: everyone may read the leadership_group_id
+// pointer, but it is writable ONLY through the admin-gated /api/admin-config
+// endpoint (manifest admin_config). This is the trust root for "who is leadership".
+async function loadSettings() {
+  if (!DB) { leadershipGroupId = ""; return; }
+  try {
+    const res = await db(
+      `SELECT value AS v FROM app_group_channels__settings WHERE key = 'leadership_group_id' LIMIT 1`
+    );
+    leadershipGroupId = res?.rows?.[0]?.v ?? "";
+  } catch { leadershipGroupId = ""; }
+}
+
+function canManageCh() {
+  return canManageChannels(ME, groups, leadershipGroupId);
 }
 
 async function loadChannels() {
@@ -632,35 +659,58 @@ async function loadLastRead() {
   for (const r of (res.rows ?? [])) lastReadMap[r.channel_id] = r.last_read_at;
 }
 
-async function loadMessages(channelId, offset = 0) {
+// Newest message timestamp per channel, for unread indicators. The channel_scoped
+// policy on `messages` means this only returns channels the caller can see, so no
+// restricted channel leaks in. GROUP BY parses fine through the policy rewriter.
+async function loadChannelLatest() {
+  if (!DB) return;
   const res = await db(
-    `SELECT m.*, f.id AS f_id, f.file_name, f.mime_type, f.size_bytes, f.file_id
-     FROM app_group_channels__messages m
-     LEFT JOIN app_group_channels__message_files f ON f.message_id = m.id
-     WHERE m.channel_id = ?
-     ORDER BY m.created_at ASC, m.id ASC
-     LIMIT ? OFFSET ?`,
-    [channelId, PAGE, offset]
+    `SELECT channel_id, MAX(created_at) AS last_at
+     FROM app_group_channels__messages
+     GROUP BY channel_id`
   );
+  latestMsgMap = {};
+  for (const r of (res.rows ?? [])) latestMsgMap[r.channel_id] = r.last_at;
+}
 
-  // Merge file rows into messages
-  const msgMap = {};
-  for (const row of (res.rows ?? [])) {
-    if (!msgMap[row.id]) {
-      msgMap[row.id] = { ...row, attachments: [] };
-      delete msgMap[row.id].f_id;
-    }
-    if (row.f_id) {
-      msgMap[row.id].attachments.push({
-        id: row.f_id, file_id: row.file_id, file_name: row.file_name,
-        mime_type: row.mime_type, size_bytes: row.size_bytes,
-      });
-    }
-  }
-  const rows = Object.values(msgMap);
-
+async function loadMessages(channelId, offset = 0) {
   if (!DB) return demoDemoMessages(channelId);
-  return rows;
+
+  // LIMIT/OFFSET are inlined as integers: the hub's row-policy SQL rewriter
+  // (node-sql-parser) cannot parse parameterized LIMIT/OFFSET on a
+  // policy-governed table, so `LIMIT ? OFFSET ?` would be rejected outright.
+  const lim = Math.max(1, Math.floor(PAGE));
+  const off = Math.max(0, Math.floor(Number(offset) || 0));
+  const res = await db(
+    `SELECT * FROM app_group_channels__messages
+     WHERE channel_id = ?
+     ORDER BY created_at ASC, id ASC
+     LIMIT ${lim} OFFSET ${off}`,
+    [channelId]
+  );
+  const msgs = (res.rows ?? []).map(m => ({ ...m, attachments: [] }));
+  if (!msgs.length) return msgs;
+
+  // Attachments are fetched in a SEPARATE query. `message_files` is its own
+  // policy-governed table (channel_scoped, like messages) so its rows follow
+  // channel visibility — but the rewriter mis-binds parameters when two
+  // governed tables appear in one statement, so we never JOIN them.
+  const byId = {};
+  for (const m of msgs) byId[m.id] = m;
+  const ph = msgs.map(() => "?").join(",");
+  const fRes = await db(
+    `SELECT id, message_id, file_id, file_name, mime_type, size_bytes
+     FROM app_group_channels__message_files
+     WHERE message_id IN (${ph})`,
+    msgs.map(m => m.id)
+  );
+  for (const f of (fRes.rows ?? [])) {
+    byId[f.message_id]?.attachments.push({
+      id: f.id, file_id: f.file_id, file_name: f.file_name,
+      mime_type: f.mime_type, size_bytes: f.size_bytes,
+    });
+  }
+  return msgs;
 }
 
 function demoDemoMessages(channelId) {
@@ -689,11 +739,23 @@ async function searchMessages(query) {
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────
-async function notify(title, body) {
-  await fetch(window.__NOTIFY_URL ?? "/api/notifications/send", {
+// Fan out a new-message notification through the hub's subscription endpoint.
+// The hub notifies channel followers (channel_subscriptions is owner_only, so the
+// client can't read who they are) plus any @mentioned members in `mentionIds`,
+// re-checks that each recipient may still see the channel, and pushes only to them —
+// so we never blast the household-wide "all" audience and never leak previews.
+async function notifyChannel(channelId, title, body, mentionIds) {
+  if (!NOTIFY_SUBS) return;
+  await fetch(NOTIFY_SUBS, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, body, url: `/run/${APP_ID}?channelId=${currentChannelId}` }),
+    body: JSON.stringify({
+      topic_id: channelId,
+      title,
+      body,
+      url: `/run/${APP_ID}?channelId=${channelId}`,
+      also_notify: Array.isArray(mentionIds) ? mentionIds : [],
+    }),
   }).catch(() => {});
 }
 
@@ -710,6 +772,9 @@ async function markRead(channelId) {
   if (!ME || !DB) return;
   const now = new Date().toISOString();
   lastReadMap[channelId] = now;
+  // Opening a channel reads it up to "now", so it can never show as unread while open.
+  latestMsgMap[channelId] = latestMsgMap[channelId] && latestMsgMap[channelId] > now
+    ? latestMsgMap[channelId] : now;
   await db(
     `INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at)
      VALUES (?, ?, ?)
@@ -720,12 +785,11 @@ async function markRead(channelId) {
 
 function hasUnread(ch) {
   if (!ME) return false;
-  if (!messages.length && ch.id !== currentChannelId) return false;
+  if (ch.id === currentChannelId) return false;       // actively viewing → read
+  const latest = latestMsgMap[ch.id];
+  if (!latest) return false;                           // no messages in the channel
   const lastRead = lastReadMap[ch.id];
-  if (!lastRead) return true; // never opened
-  // We can't know from cached state alone — rely on a dedicated last-msg check per channel.
-  // For simplicity, mark unread only if channel has received a message after lastRead.
-  return false; // full unread tracking requires per-channel latest-msg query; skip for now
+  return !lastRead || latest > lastRead;               // ISO timestamps sort lexicographically
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -764,15 +828,19 @@ function renderSidebar() {
   list.innerHTML = html;
 
   const newBtn = document.getElementById("new-channel-btn");
-  if (newBtn) newBtn.style.display = canManageChannels(ME) ? "inline-flex" : "none";
+  if (newBtn) newBtn.style.display = canManageCh() ? "inline-flex" : "none";
+  const gearBtn = document.getElementById("settings-btn");
+  if (gearBtn) gearBtn.style.display = IS_ADMIN ? "inline-flex" : "none";
 }
 
 function channelItemHtml(ch) {
   const active = ch.id === currentChannelId ? "active" : "";
   const archived = ch.archived_at ? "archived-ch" : "";
+  const unread = hasUnread(ch);
   return `<div class="channel-item ${active} ${archived}" onclick="window.openChannel('${esc(ch.id)}')">
     <span class="ch-hash">#</span>
-    <span class="ch-name">${esc(ch.name)}</span>
+    <span class="ch-name" style="${unread ? "font-weight:600;color:var(--text)" : ""}">${esc(ch.name)}</span>
+    ${unread ? `<span class="ch-unread"></span>` : ""}
   </div>`;
 }
 
@@ -796,7 +864,7 @@ function renderMain() {
   if (!ch) return;
 
   const canPost = canPostInChannel(ME ?? { id: "", role: "member" }, ch, channelMembersMap[ch.id] ?? []);
-  const canManage = canManageChannels(ME);
+  const canManage = canManageCh();
 
   main.innerHTML = `
     <div class="channel-header">
@@ -805,6 +873,12 @@ function renderMain() {
       ${ch.description ? `<span class="channel-header-desc">${esc(ch.description)}</span>` : ""}
       ${ch.archived_at ? `<span class="badge-archived">Archived</span>` : ""}
       <div class="channel-header-actions">
+        ${ME ? `
+          <button class="btn btn-ghost btn-sm" data-channel="${esc(ch.id)}" onclick="window.toggleFollow(this.dataset.channel)"
+            title="${subscriptions.has(ch.id) ? "Following — you’re notified of new messages. Click to stop." : "Get notified of new messages in this channel"}">
+            ${subscriptions.has(ch.id) ? "🔔 Following" : "🔕 Follow"}
+          </button>
+        ` : ""}
         ${canManage ? `
           <div class="ch-menu-anchor">
             <button class="btn btn-ghost btn-sm" onclick="window.toggleChMenu(event)">Manage ▾</button>
@@ -981,6 +1055,25 @@ window.jumpToMessage = function(channelId) {
   window.openChannel(channelId);
 };
 
+// Follow / unfollow a channel. channel_subscriptions is owner_only, so a member
+// can only ever write their OWN row (the policy forces member_id to the caller).
+// Following just opts you into the hub's notify-subscribers fan-out for this channel.
+window.toggleFollow = async function(channelId) {
+  if (!ME || !DB) return;
+  const wasFollowing = subscriptions.has(channelId);
+  if (wasFollowing) subscriptions.delete(channelId); else subscriptions.add(channelId);
+  renderMain(); // reflect the bell immediately (optimistic)
+  try {
+    const r = wasFollowing
+      ? await db(`DELETE FROM app_group_channels__channel_subscriptions WHERE channel_id = ? AND member_id = ?`, [channelId, ME.id])
+      : await db(`INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, [channelId, ME.id]);
+    if (r && r.error) throw new Error(r.error);
+  } catch {
+    if (wasFollowing) subscriptions.add(channelId); else subscriptions.delete(channelId);
+    renderMain();
+  }
+};
+
 // ── Composer ──────────────────────────────────────────────────────────────────
 window.composerInput = function(e) {
   const ta = e.target;
@@ -1030,8 +1123,12 @@ function updateMentionPopup(ta) {
   highlightedMention = 0;
   const popup = document.getElementById("mention-popup");
   popup.style.display = "block";
+  // Pass the name via a data-* attribute, not interpolated into the onclick JS
+  // string: esc() does not escape single quotes, so a name like O'Brien would
+  // break out of onclick="...('${name}')" (inline-handler injection). data-name
+  // is an HTML attribute context where esc()'s &quot; encoding is sufficient.
   popup.innerHTML = filtered.map((m, i) => `
-    <div class="mention-item ${i === 0 ? "highlighted" : ""}" onclick="window.insertMention('${esc(m.name)}')">
+    <div class="mention-item ${i === 0 ? "highlighted" : ""}" data-name="${esc(m.name)}" onclick="window.insertMention(this.dataset.name)">
       <div class="avatar" style="background:${memberColor(m.id)}">${esc(initial(m.name))}</div>
       ${esc(m.name)}
     </div>`).join("");
@@ -1136,20 +1233,20 @@ window.sendMessage = async function() {
     // File inserts in parallel
     await Promise.all(filesToAttach.map(f =>
       db(
-        `INSERT INTO app_group_channels__message_files (id, message_id, file_id, file_name, mime_type, size_bytes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [crypto.randomUUID(), msgId, f.id, f.name, f.mime_type, f.file?.size ?? 0, now]
+        `INSERT INTO app_group_channels__message_files (id, message_id, channel_id, author_id, file_id, file_name, mime_type, size_bytes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [crypto.randomUUID(), msgId, currentChannelId, ME.id, f.id, f.name, f.mime_type, f.file?.size ?? 0, now]
       )
     ));
 
     // Notify fire-and-forget — doesn't affect sender's UI
     const ch = channels.find(c => c.id === currentChannelId);
     if (ch) {
-      const notifyIds = new Set([
-        ...extractMentionedIds(body, members),
-        ...[...subscriptions].filter(sid => sid === currentChannelId),
-      ]);
-      if (notifyIds.size) notify(`#${ch.name}`, `${ME.name}: ${body.slice(0, 80)}`).catch(() => {});
+      // The hub fans out to channel followers + these @mentioned ids, applying
+      // channel-visibility eligibility server-side (channel_subscriptions is
+      // owner_only, so followers can't be resolved or fanned out from the client).
+      const mentionIds = [...new Set(extractMentionedIds(body, members))].filter(id => id !== ME.id);
+      notifyChannel(currentChannelId, `#${ch.name}`, `${ME.name}: ${body.slice(0, 80)}`, mentionIds).catch(() => {});
     }
 
     // Reload for authoritative server state, then mark read
@@ -1379,6 +1476,66 @@ window.unarchiveChannel = async function(id) {
   renderMain();
 };
 
+// ── Leadership settings (hub-admin only) ───────────────────────────────────────
+// Appointing the leadership group is the trust root for who may manage channels.
+// It is written ONLY through the admin-gated /api/admin-config endpoint; the
+// `app_config` row policy rejects any app-originated SQL write to the settings
+// table, closing the bootstrap hole where any adult could crown themselves.
+window.openSettings = function() {
+  if (!IS_ADMIN) return;
+  const options = [
+    `<option value="" ${!leadershipGroupId ? "selected" : ""}>— None (channel management disabled) —</option>`,
+    ...groups.map(g =>
+      `<option value="${esc(g.id)}" ${leadershipGroupId === g.id ? "selected" : ""}>${esc(g.name)}</option>`
+    ),
+  ].join("");
+  openModal(`
+    <h2>Leadership settings</h2>
+    <div class="form-group">
+      <label>Leadership group</label>
+      <select id="f-leadership">${options}</select>
+      <div class="slug-preview" style="margin-top:8px">
+        Members of this group may create, edit, and archive channels and manage
+        membership. Until a group is set, channel management is disabled for everyone.
+      </div>
+      ${!groups.length ? `<div class="slug-preview" style="margin-top:6px">No groups exist yet — create one under <strong>Settings → Groups</strong> first.</div>` : ""}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="window.closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="f-save-leadership" onclick="window.saveLeadershipGroup()">Save</button>
+    </div>
+  `);
+};
+
+window.saveLeadershipGroup = async function() {
+  const sel = document.getElementById("f-leadership");
+  if (!sel) return;
+  const groupId = sel.value;
+  const prev = leadershipGroupId;
+  const btn = document.getElementById("f-save-leadership");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  try {
+    const res = await fetch(ADMIN_CONFIG, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "leadership_group_id", value: groupId }),
+    });
+    if (!res.ok) {
+      let m = "Save failed";
+      try { m = (await res.json()).error ?? m; } catch {}
+      throw new Error(m);
+    }
+    leadershipGroupId = groupId;
+    closeModal();
+    renderSidebar();
+    renderMain();
+  } catch (e) {
+    leadershipGroupId = prev;
+    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+    alert(e.message ?? "Save failed");
+  }
+};
+
 // ── Search ─────────────────────────────────────────────────────────────────────
 let searchDebounce = null;
 document.getElementById("search-input").addEventListener("input", e => {
@@ -1402,6 +1559,7 @@ window.closeModal = function() { modalEl?.remove(); modalEl = null; };
 
 // ── New channel button ────────────────────────────────────────────────────────
 document.getElementById("new-channel-btn").addEventListener("click", () => window.openNewChannel());
+document.getElementById("settings-btn").addEventListener("click", () => window.openSettings());
 
 // ── Deep link ─────────────────────────────────────────────────────────────────
 function handleDeepLink() {
@@ -1412,7 +1570,7 @@ function handleDeepLink() {
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 (async () => {
-  await Promise.all([loadMembers(), loadChannels(), loadSubscriptions(), loadLastRead()]);
+  await Promise.all([loadMembers(), loadSettings(), loadChannels(), loadSubscriptions(), loadLastRead(), loadChannelLatest()]);
   renderSidebar();
   handleDeepLink();
   if (!currentChannelId) renderMain();

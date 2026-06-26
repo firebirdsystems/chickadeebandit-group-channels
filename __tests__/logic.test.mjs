@@ -42,12 +42,22 @@ describe("esc", () => {
 });
 
 // ── canManageChannels ─────────────────────────────────────────────────────────
+// Management is gated on membership in the configured leadership group (mirrors the
+// server's insert_privileged_only/write_privileged_only), NOT on role.
 describe("canManageChannels", () => {
-  it("allows admin",   () => expect(canManageChannels({ role: "admin" })).toBe(true));
-  it("allows officer", () => expect(canManageChannels({ role: "officer" })).toBe(true));
-  it("blocks member",  () => expect(canManageChannels({ role: "member" })).toBe(false));
-  it("blocks pledge",  () => expect(canManageChannels({ role: "pledge" })).toBe(false));
-  it("blocks null",    () => expect(canManageChannels(null)).toBe(false));
+  const groups = [
+    { id: "g-lead", name: "Leadership", memberIds: ["m1", "m2"] },
+    { id: "g-other", name: "Social", memberIds: ["m3"] },
+  ];
+  it("allows a member of the configured leadership group",
+     () => expect(canManageChannels({ id: "m1", role: "member" }, groups, "g-lead")).toBe(true));
+  it("blocks a non-member of the leadership group even if 'admin' role",
+     () => expect(canManageChannels({ id: "m3", role: "admin" }, groups, "g-lead")).toBe(false));
+  it("blocks everyone when no leadership group is configured",
+     () => expect(canManageChannels({ id: "m1", role: "admin" }, groups, "")).toBe(false));
+  it("blocks when the configured group id does not exist",
+     () => expect(canManageChannels({ id: "m1", role: "admin" }, groups, "g-missing")).toBe(false));
+  it("blocks null member", () => expect(canManageChannels(null, groups, "g-lead")).toBe(false));
 });
 
 // ── canSeeChannel ─────────────────────────────────────────────────────────────

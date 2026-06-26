@@ -3,9 +3,19 @@ export { AVATAR_COLORS, memberColor, initial, esc, isAdult, formatRelativeDate }
 
 // ── Access control ─────────────────────────────────────────────────────────────
 
-export function canManageChannels(me) {
-  if (!me) return false;
-  return me.role === "admin" || me.role === "officer";
+/**
+ * Whether `me` may create / edit / archive channels. This MUST mirror the server:
+ * `channels` and `channel_members` are gated by `insert_privileged_only` +
+ * `write_privileged_only` on the configured leadership group (manifest
+ * `bypass_group_setting` → `leadership_group_id`). There is no "all adults"
+ * fallback — when no leadership group is configured the server blocks every
+ * management write, so the client must too (a hub admin sets the group first via
+ * the admin-config endpoint). Role (admin/officer) is NOT what the server checks.
+ */
+export function canManageChannels(me, groups = [], leadershipGroupId = "") {
+  if (!me || !leadershipGroupId) return false;
+  const g = groups.find(x => x.id === leadershipGroupId);
+  return !!g && g.memberIds.includes(me.id);
 }
 
 /**
