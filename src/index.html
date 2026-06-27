@@ -530,7 +530,7 @@ import { memberColor, initial, esc, formatRelativeDate,
          canManageChannels, canSeeChannel, canPostInChannel,
          slugify, resolveChannelMemberIds, renderBody,
          extractMentionedIds, dateLabel, isSameDay } from "./logic.js";
-import { createFilesHelper } from "/hub-sdk.js";
+import { hubAlert, createFilesHelper } from "/hub-sdk.js";
 
 // ── Globals ───────────────────────────────────────────────────────────────────
 const CONTEXT      = window.__CONTEXT_URL  ?? "";
@@ -1171,7 +1171,7 @@ window.onFileSelected = async function(e) {
       entry.uploading = false;
     } catch (err) {
       pendingFiles = pendingFiles.filter(f => f.tempId !== entry.tempId);
-      alert(`Upload failed: ${err.message}`);
+      hubAlert(`Upload failed: ${err.message}`);
     }
     renderPendingFiles();
   }
@@ -1201,7 +1201,7 @@ window.sendMessage = async function() {
   if (!ta) return;
   const body = ta.value.trim();
   if (!body && !pendingFiles.length) return;
-  if (pendingFiles.some(f => f.uploading)) { alert("Still uploading files, please wait."); return; }
+  if (pendingFiles.some(f => f.uploading)) { hubAlert("Still uploading files, please wait."); return; }
 
   const msgId = crypto.randomUUID();
   const now   = new Date().toISOString();
@@ -1379,7 +1379,7 @@ window.submitChannel = async function(existingId) {
   if (!name) { document.getElementById("f-name").focus(); return; }
 
   const slug = slugify(name);
-  if (!slug) { alert("Invalid channel name."); return; }
+  if (!slug) { hubAlert("Invalid channel name."); return; }
 
   const membershipType = document.getElementById("f-membership").value;
   const desc = document.getElementById("f-desc").value.trim();
@@ -1389,12 +1389,12 @@ window.submitChannel = async function(existingId) {
 
   if (membershipType === "role") {
     const checked = [...document.querySelectorAll('input[name="role"]:checked')].map(el => el.value);
-    if (!checked.length) { alert("Select at least one role."); return; }
+    if (!checked.length) { hubAlert("Select at least one role."); return; }
     membershipRoles = JSON.stringify(checked);
   }
   if (membershipType === "custom") {
     customMemberIds = [...document.querySelectorAll(".member-picker input:checked")].map(el => el.value);
-    if (!customMemberIds.length) { alert("Select at least one member."); return; }
+    if (!customMemberIds.length) { hubAlert("Select at least one member."); return; }
   }
 
   const btn = document.getElementById("f-submit");
@@ -1532,7 +1532,7 @@ window.saveLeadershipGroup = async function() {
   } catch (e) {
     leadershipGroupId = prev;
     if (btn) { btn.disabled = false; btn.textContent = "Save"; }
-    alert(e.message ?? "Save failed");
+    hubAlert(e.message ?? "Save failed");
   }
 };
 
