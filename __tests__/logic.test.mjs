@@ -7,6 +7,19 @@ import {
   dateLabel, isSameDay,
   formatRelativeDate,
 } from "../src/logic.js";
+import { testPrivilegedGateContract } from "./helpers/privileged-gate.mjs";
+
+// ── canManageChannels ─────────────────────────────────────────────────────────
+// Fronts the channels / channel_members insert_privileged_only +
+// write_privileged_only policies (leadership_group_id), so it must satisfy the
+// shared privileged-gate contract (mirrors the hub: no fallback when unconfigured).
+
+testPrivilegedGateContract("canManageChannels", canManageChannels, {
+  member:   { id: "a1", role: "adult" },
+  outsider: { id: "a3", role: "adult" },
+  groups:   [{ id: "g1", memberIds: ["a1", "a2"] }],
+  groupId:  "g1",
+});
 
 // ── memberColor / initial ─────────────────────────────────────────────────────
 describe("memberColor", () => {
