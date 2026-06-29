@@ -55,18 +55,18 @@ describe("esc", () => {
 });
 
 // ── canManageChannels ─────────────────────────────────────────────────────────
-// Management is gated on membership in the configured leadership group (mirrors the
+// Management is gated on membership in the configured channel manager group (mirrors the
 // server's insert_privileged_only/write_privileged_only), NOT on role.
 describe("canManageChannels", () => {
   const groups = [
-    { id: "g-lead", name: "Leadership", memberIds: ["m1", "m2"] },
+    { id: "g-lead", name: "Channel Managers", memberIds: ["m1", "m2"] },
     { id: "g-other", name: "Social", memberIds: ["m3"] },
   ];
-  it("allows a member of the configured leadership group",
+  it("allows a member of the configured channel manager group",
      () => expect(canManageChannels({ id: "m1", role: "member" }, groups, "g-lead")).toBe(true));
-  it("blocks a non-member of the leadership group even if 'admin' role",
+  it("blocks a non-member of the channel manager group even if 'admin' role",
      () => expect(canManageChannels({ id: "m3", role: "admin" }, groups, "g-lead")).toBe(false));
-  it("blocks everyone when no leadership group is configured",
+  it("blocks everyone when no channel manager group is configured",
      () => expect(canManageChannels({ id: "m1", role: "admin" }, groups, "")).toBe(false));
   it("blocks when the configured group id does not exist",
      () => expect(canManageChannels({ id: "m1", role: "admin" }, groups, "g-missing")).toBe(false));
@@ -80,16 +80,18 @@ describe("canSeeChannel — all", () => {
   it("null me cannot see",  () => expect(canSeeChannel(null, ch)).toBe(false));
 });
 
-describe("canSeeChannel — role", () => {
-  const ch = { membership_type: "role", membership_roles: '["officer","admin"]', archived_at: null };
-  it("officer can see",  () => expect(canSeeChannel({ id: "o1", role: "officer" }, ch)).toBe(true));
-  it("admin can see",    () => expect(canSeeChannel({ id: "a1", role: "admin"   }, ch)).toBe(true));
-  it("member cannot",    () => expect(canSeeChannel({ id: "m1", role: "member"  }, ch)).toBe(false));
-  it("pledge cannot",    () => expect(canSeeChannel({ id: "p1", role: "pledge"  }, ch)).toBe(false));
+describe("canSeeChannel — group", () => {
+  const ch = { membership_type: "group", membership_roles: '["g-board","g-finance"]', archived_at: null };
+  const groups = [
+    { id: "g-board", memberIds: ["m1", "m2"] },
+    { id: "g-social", memberIds: ["m3"] },
+  ];
+  it("member in a selected group can see", () => expect(canSeeChannel({ id: "m1", role: "member" }, ch, [], groups)).toBe(true));
+  it("member outside selected groups cannot see", () => expect(canSeeChannel({ id: "m3", role: "admin" }, ch, [], groups)).toBe(false));
 
   it("accepts pre-parsed array", () => {
-    const ch2 = { membership_type: "role", membership_roles: ["officer"], archived_at: null };
-    expect(canSeeChannel({ id: "o1", role: "officer" }, ch2)).toBe(true);
+    const ch2 = { membership_type: "group", membership_roles: ["g-board"], archived_at: null };
+    expect(canSeeChannel({ id: "m2", role: "officer" }, ch2, [], groups)).toBe(true);
   });
 });
 
@@ -135,9 +137,14 @@ describe("resolveChannelMemberIds", () => {
     expect(resolveChannelMemberIds(ch, members)).toEqual(["a1","o1","m1","p1"]);
   });
 
-  it("role — returns matching roles", () => {
-    const ch = { membership_type: "role", membership_roles: '["officer","admin"]' };
-    expect(resolveChannelMemberIds(ch, members).sort()).toEqual(["a1","o1"].sort());
+  it("group — returns members from selected groups", () => {
+    const ch = { membership_type: "group", membership_roles: '["g-board","g-finance"]' };
+    const groups = [
+      { id: "g-board", memberIds: ["a1", "o1"] },
+      { id: "g-finance", memberIds: ["o1", "m1"] },
+      { id: "g-social", memberIds: ["p1"] },
+    ];
+    expect(resolveChannelMemberIds(ch, members, [], groups).sort()).toEqual(["a1","o1","m1"].sort());
   });
 
   it("custom — returns provided ids", () => {

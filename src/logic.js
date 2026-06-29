@@ -6,7 +6,7 @@ export { AVATAR_COLORS, memberColor, initial, esc, isAdult, formatRelativeDate }
 /**
  * Whether `me` may create / edit / archive channels. This MUST mirror the server:
  * `channels` and `channel_members` are gated by `insert_privileged_only` +
- * `write_privileged_only` on the configured leadership group (manifest
+ * `write_privileged_only` on the configured channel manager group (manifest
  * `bypass_group_setting` → `leadership_group_id`). There is no "all adults"
  * fallback — when no leadership group is configured the server blocks every
  * management write, so the client must too (a hub admin sets the group first via
@@ -23,10 +23,17 @@ export function canManageChannels(me, groups = [], leadershipGroupId = "") {
  * @param {object} me
  * @param {object} channel  - { membership_type, membership_roles (parsed array) }
  * @param {string[]} customMemberIds - ids from channel_members for this channel
+ * @param {object[]} groups - family.groups: [{ id, memberIds }]
  */
-export function canSeeChannel(me, channel, customMemberIds = []) {
+export function canSeeChannel(me, channel, customMemberIds = [], groups = []) {
   if (!me) return false;
   if (channel.membership_type === "all") return true;
+  if (channel.membership_type === "group") {
+    const groupIds = Array.isArray(channel.membership_roles)
+      ? channel.membership_roles
+      : JSON.parse(channel.membership_roles || "[]");
+    return groups.some(g => groupIds.includes(g.id) && (g.memberIds ?? []).includes(me.id));
+  }
   if (channel.membership_type === "role") {
     const roles = Array.isArray(channel.membership_roles)
       ? channel.membership_roles
@@ -39,9 +46,9 @@ export function canSeeChannel(me, channel, customMemberIds = []) {
   return false;
 }
 
-export function canPostInChannel(me, channel, customMemberIds = []) {
+export function canPostInChannel(me, channel, customMemberIds = [], groups = []) {
   if (channel.archived_at) return false;
-  return canSeeChannel(me, channel, customMemberIds);
+  return canSeeChannel(me, channel, customMemberIds, groups);
 }
 
 // ── Channel helpers ────────────────────────────────────────────────────────────
@@ -60,8 +67,18 @@ export function slugify(name) {
  * Returns the member ids who belong to a channel — used for @mention autocomplete
  * and targeting notifications.
  */
-export function resolveChannelMemberIds(channel, allMembers, customMemberIds = []) {
+export function resolveChannelMemberIds(channel, allMembers, customMemberIds = [], groups = []) {
   if (channel.membership_type === "all") return allMembers.map(m => m.id);
+  if (channel.membership_type === "group") {
+    const groupIds = Array.isArray(channel.membership_roles)
+      ? channel.membership_roles
+      : JSON.parse(channel.membership_roles || "[]");
+    const ids = new Set();
+    groups
+      .filter(g => groupIds.includes(g.id))
+      .forEach(g => (g.memberIds ?? []).forEach(id => ids.add(id)));
+    return [...ids];
+  }
   if (channel.membership_type === "role") {
     const roles = Array.isArray(channel.membership_roles)
       ? channel.membership_roles

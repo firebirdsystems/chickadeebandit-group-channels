@@ -448,9 +448,9 @@
     .slug-preview { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
     .slug-preview span { color: var(--accent); font-weight: 600; }
 
-    .role-checkboxes { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-    .role-checkbox { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; cursor: pointer; }
-    .role-checkbox input { width: 15px; height: 15px; cursor: pointer; }
+    .group-checkboxes { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .group-checkbox { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; cursor: pointer; }
+    .group-checkbox input { width: 15px; height: 15px; cursor: pointer; }
 
     .member-picker {
       max-height: 160px;
@@ -507,7 +507,7 @@
   <aside class="sidebar">
     <div class="sidebar-header">
       <span class="sidebar-title">Channels</span>
-      <button class="btn-icon" id="settings-btn" title="Leadership settings" style="display:none">⚙️</button>
+      <button class="btn-icon" id="settings-btn" title="Channel manager settings" style="display:none">⚙️</button>
       <button class="btn-icon" id="new-channel-btn" title="New channel" style="display:none">＋</button>
     </div>
     <div class="sidebar-search">
@@ -597,7 +597,10 @@ async function loadMembers() {
       { id: "m3", name: "Sam Rivera",   role: "member" },
       { id: "m4", name: "Taylor Kim",   role: "pledge" },
     ];
-    groups = [];
+    groups = [
+      { id: "g-leadership", name: "Leadership", memberIds: ["m1", "m2"] },
+      { id: "g-finance", name: "Finance", memberIds: ["m1", "m2"] },
+    ];
     return;
   }
   try {
@@ -655,8 +658,8 @@ async function loadChannels() {
 function seedDemoData() {
   channels = [
     { id: "ch1", name: "House-Wide",  slug: "house-wide",  membership_type: "all",   membership_roles: "[]", is_system: 1, description: "All members", archived_at: null, created_at: new Date().toISOString(), created_by: "system" },
-    { id: "ch2", name: "Leadership",  slug: "leadership",  membership_type: "role",  membership_roles: '["admin","officer"]', is_system: 1, description: "Officers only", archived_at: null, created_at: new Date().toISOString(), created_by: "system" },
-    { id: "ch3", name: "Finance",     slug: "finance",     membership_type: "role",  membership_roles: '["admin","officer"]', is_system: 0, description: "Budget & dues", archived_at: null, created_at: new Date().toISOString(), created_by: "m1" },
+    { id: "ch2", name: "Leadership",  slug: "leadership",  membership_type: "group", membership_roles: '["g-leadership"]', is_system: 1, description: "Leadership group", archived_at: null, created_at: new Date().toISOString(), created_by: "system" },
+    { id: "ch3", name: "Finance",     slug: "finance",     membership_type: "group", membership_roles: '["g-finance"]', is_system: 0, description: "Budget & dues", archived_at: null, created_at: new Date().toISOString(), created_by: "m1" },
   ];
   channelMembersMap = {};
 }
@@ -767,7 +770,7 @@ async function searchMessages(query) {
 // so we never blast the household-wide "all" audience and never leak previews.
 async function notifyChannel(channelId, title, body, mentionIds) {
   if (!NOTIFY_SUBS) return;
-  await fetch(NOTIFY_SUBS, {
+  const res = await fetch(NOTIFY_SUBS, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -777,14 +780,19 @@ async function notifyChannel(channelId, title, body, mentionIds) {
       url: `/run/${APP_ID}?channelId=${channelId}`,
       also_notify: Array.isArray(mentionIds) ? mentionIds : [],
     }),
-  }).catch(() => {});
+  });
+  if (!res.ok) {
+    let message = "Notify subscribers failed";
+    try { message = (await res.json()).error ?? message; } catch {}
+    throw new Error(message);
+  }
 }
 
 // ── Channel visibility filter ─────────────────────────────────────────────────
 function visibleChannels() {
   return channels.filter(ch => {
     if (!showArchived && ch.archived_at) return false;
-    return canSeeChannel(ME ?? { id: "", role: "member" }, ch, channelMembersMap[ch.id] ?? []);
+    return canSeeChannel(ME ?? { id: "", role: "member" }, ch, channelMembersMap[ch.id] ?? [], groups);
   });
 }
 
@@ -884,7 +892,7 @@ function renderMain() {
   const ch = channels.find(c => c.id === currentChannelId);
   if (!ch) return;
 
-  const canPost = canPostInChannel(ME ?? { id: "", role: "member" }, ch, channelMembersMap[ch.id] ?? []);
+  const canPost = canPostInChannel(ME ?? { id: "", role: "member" }, ch, channelMembersMap[ch.id] ?? [], groups);
   const canManage = canManageCh();
 
   main.innerHTML = `
@@ -895,6 +903,9 @@ function renderMain() {
       ${ch.archived_at ? `<span class="badge-archived">Archived</span>` : ""}
       <div class="channel-header-actions">
         ${ME ? `
+          <button class="btn btn-ghost btn-sm" id="refresh-channel-btn" onclick="window.refreshCurrentChannel()" title="Refresh messages">
+            ↻ Refresh
+          </button>
           <button class="btn btn-ghost btn-sm" data-channel="${esc(ch.id)}" onclick="window.toggleFollow(this.dataset.channel)"
             title="${subscriptions.has(ch.id) ? "Following — you’re notified of new messages. Click to stop." : "Get notified of new messages in this channel"}">
             ${subscriptions.has(ch.id) ? "🔔 Following" : "🔕 Follow"}
@@ -1054,6 +1065,23 @@ window.openChannel = async function(id) {
   await markRead(id);
 };
 
+window.refreshCurrentChannel = async function() {
+  if (!currentChannelId) return;
+  const btn = document.getElementById("refresh-channel-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "↻ Refreshing"; }
+  try {
+    await Promise.all([loadChannels(), loadSubscriptions(), loadChannelLatest()]);
+    messages = await loadMessages(currentChannelId, 0);
+    messageOffset = 0;
+    renderSidebar();
+    renderMain();
+    await markRead(currentChannelId);
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = "↻ Refresh"; }
+    hubAlert(`Refresh failed: ${err.message}`);
+  }
+};
+
 window.loadMoreMessages = async function() {
   messageOffset += PAGE;
   const older = await loadMessages(currentChannelId, messageOffset);
@@ -1134,7 +1162,7 @@ function updateMentionPopup(ta) {
 
   const ch = channels.find(c => c.id === currentChannelId);
   if (!ch) { closeMentionPopup(); return; }
-  const memberIds = resolveChannelMemberIds(ch, members, channelMembersMap[ch.id] ?? []);
+  const memberIds = resolveChannelMemberIds(ch, members, channelMembersMap[ch.id] ?? [], groups);
   const memberIdSet = new Set(memberIds);
   const channelMembers = members.filter(m => memberIdSet.has(m.id));
 
@@ -1267,7 +1295,8 @@ window.sendMessage = async function() {
       // channel-visibility eligibility server-side (channel_subscriptions is
       // owner_only, so followers can't be resolved or fanned out from the client).
       const mentionIds = [...new Set(extractMentionedIds(body, members))].filter(id => id !== ME.id);
-      notifyChannel(currentChannelId, `#${ch.name}`, `${ME.name}: ${body.slice(0, 80)}`, mentionIds).catch(() => {});
+      notifyChannel(currentChannelId, `#${ch.name}`, `${ME.name}: ${body.slice(0, 80)}`, mentionIds)
+        .catch(err => console.warn("[group-channels] notification failed", err));
     }
 
     // Reload for authoritative server state, then mark read
@@ -1323,10 +1352,16 @@ window.openEditChannel = function(id) {
 
 function openChannelModal(ch) {
   const editing = !!ch;
-  const roles = ch ? JSON.parse(ch.membership_roles || "[]") : [];
-  const isRole = ch?.membership_type === "role";
+  const selectedGroupIds = ch ? JSON.parse(ch.membership_roles || "[]") : [];
+  const isGroup = ch?.membership_type === "group";
   const isCustom = ch?.membership_type === "custom";
   const customIds = ch ? (channelMembersMap[ch.id] ?? []) : [];
+
+  const groupOptions = groups.map(g => `
+    <label class="group-checkbox">
+      <input type="checkbox" name="group" value="${esc(g.id)}" ${selectedGroupIds.includes(g.id) ? "checked" : ""} />
+      ${esc(g.name)}
+    </label>`).join("");
 
   const memberOptions = members.map(m => `
     <label class="member-pick-item">
@@ -1349,20 +1384,16 @@ function openChannelModal(ch) {
     <div class="form-group">
       <label>Membership</label>
       <select id="f-membership" onchange="window.onMembershipChange()">
-        <option value="all"    ${!isRole && !isCustom ? "selected" : ""}>All members</option>
-        <option value="role"   ${isRole   ? "selected" : ""}>Role-based</option>
+        <option value="all"    ${!isGroup && !isCustom ? "selected" : ""}>All members</option>
+        <option value="group"  ${isGroup  ? "selected" : ""}>Group-based</option>
         <option value="custom" ${isCustom ? "selected" : ""}>Hand-picked</option>
       </select>
     </div>
-    <div id="f-roles-wrap" style="${isRole ? "" : "display:none"}">
+    <div id="f-groups-wrap" style="${isGroup ? "" : "display:none"}">
       <div class="form-group">
-        <label>Roles</label>
-        <div class="role-checkboxes">
-          ${["admin","officer","member","pledge","alumni"].map(r => `
-            <label class="role-checkbox">
-              <input type="checkbox" name="role" value="${r}" ${roles.includes(r) ? "checked" : ""} />
-              ${r.charAt(0).toUpperCase() + r.slice(1)}
-            </label>`).join("")}
+        <label>Groups</label>
+        <div class="group-checkboxes">
+          ${groupOptions || `<div class="slug-preview">No groups exist yet — create one under <strong>Settings → Groups</strong> first.</div>`}
         </div>
       </div>
     </div>
@@ -1391,7 +1422,7 @@ window.onChannelNameInput = function() {
 
 window.onMembershipChange = function() {
   const val = document.getElementById("f-membership")?.value;
-  document.getElementById("f-roles-wrap").style.display  = val === "role"   ? "" : "none";
+  document.getElementById("f-groups-wrap").style.display = val === "group"  ? "" : "none";
   document.getElementById("f-custom-wrap").style.display = val === "custom" ? "" : "none";
 };
 
@@ -1408,9 +1439,9 @@ window.submitChannel = async function(existingId) {
   let membershipRoles = "[]";
   let customMemberIds = [];
 
-  if (membershipType === "role") {
-    const checked = [...document.querySelectorAll('input[name="role"]:checked')].map(el => el.value);
-    if (!checked.length) { hubAlert("Select at least one role."); return; }
+  if (membershipType === "group") {
+    const checked = [...document.querySelectorAll('input[name="group"]:checked')].map(el => el.value);
+    if (!checked.length) { hubAlert("Select at least one group."); return; }
     membershipRoles = JSON.stringify(checked);
   }
   if (membershipType === "custom") {
@@ -1497,8 +1528,8 @@ window.unarchiveChannel = async function(id) {
   renderMain();
 };
 
-// ── Leadership settings (hub-admin only) ───────────────────────────────────────
-// Appointing the leadership group is the trust root for who may manage channels.
+// ── Channel manager settings (hub-admin only) ─────────────────────────────────
+// Appointing the manager group is the trust root for who may manage channels.
 // It is written ONLY through the admin-gated /api/admin-config endpoint; the
 // `app_config` row policy rejects any app-originated SQL write to the settings
 // table, closing the bootstrap hole where any adult could crown themselves.
@@ -1511,9 +1542,9 @@ window.openSettings = function() {
     ),
   ].join("");
   openModal(`
-    <h2>Leadership settings</h2>
+    <h2>Channel manager settings</h2>
     <div class="form-group">
-      <label>Leadership group</label>
+      <label>Channel manager group</label>
       <select id="f-leadership">${options}</select>
       <div class="slug-preview" style="margin-top:8px">
         Members of this group may create, edit, and archive channels and manage
