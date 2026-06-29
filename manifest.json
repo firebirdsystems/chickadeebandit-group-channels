@@ -1,8 +1,8 @@
 {
   "id": "group-channels",
   "name": "Group Channels",
-  "version": "1.1.0",
-  "description": "Persistent named channels for org-level discussion. A channel manager group manages channels; everyone reads and posts in channels they belong to.",
+  "version": "1.0.0",
+  "description": "Persistent named channels for org-level discussion. Leadership manages channels; everyone reads and posts in channels they belong to.",
   "entrypoint": "index.html",
   "runtime": "static",
   "storage": "db",
@@ -71,8 +71,7 @@
       "membership_member_column": "member_id",
       "self_column": "author_id",
       "all_value": "all",
-      "role_value": "role",
-      "group_value": "group"
+      "role_value": "role"
     },
     "message_files": {
       "kind": "channel_scoped",
@@ -85,8 +84,7 @@
       "membership_member_column": "member_id",
       "self_column": "author_id",
       "all_value": "all",
-      "role_value": "role",
-      "group_value": "group"
+      "role_value": "role"
     },
     "member_last_read": {
       "kind": "owner_only",
@@ -110,8 +108,7 @@
       "membership_roles_column": "membership_roles",
       "membership_table": "channel_members",
       "membership_channel_column": "channel_id",
-      "membership_member_column": "member_id",
-      "group_value": "group"
+      "membership_member_column": "member_id"
     }
   }
 }
