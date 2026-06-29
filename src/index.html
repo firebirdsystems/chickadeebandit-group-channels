@@ -542,8 +542,18 @@ const ME           = window.__CURRENT_MEMBER ?? null;
 const IS_ADMIN     = window.__IS_ADMIN ?? false;
 const ADMIN_CONFIG = window.__ADMIN_CONFIG_URL ?? "";
 const NOTIFY_SUBS  = window.__NOTIFY_SUBSCRIBERS_URL ?? "";
+const DEBUG_GROUPS = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has("debugGroups") ||
+      window.localStorage?.getItem("groupChannelsDebug") === "1";
+  } catch { return false; }
+})();
 
 const files = createFilesHelper(FILES_URL);
+
+function debugGroups(message, details = {}) {
+  if (DEBUG_GROUPS) console.debug("[group-channels:groups]", message, details);
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let members          = [];
@@ -592,10 +602,21 @@ async function loadMembers() {
   }
   try {
     const res = await fetch(`${CONTEXT}?keys=family.members,family.groups`);
+    debugGroups("context response", { ok: res.ok, status: res.status, url: CONTEXT });
     const data = await res.json();
+    debugGroups("context payload", {
+      keys: Object.keys(data ?? {}),
+      hasGroupsKey: Object.prototype.hasOwnProperty.call(data ?? {}, "family.groups"),
+      groupCount: Array.isArray(data?.["family.groups"]) ? data["family.groups"].length : null,
+      memberCount: Array.isArray(data?.["family.members"]) ? data["family.members"].length : null,
+    });
     members = data["family.members"] ?? [];
     groups  = data["family.groups"]  ?? [];
-  } catch { members = []; groups = []; }
+  } catch (err) {
+    debugGroups("context load failed", { error: err instanceof Error ? err.message : String(err) });
+    members = [];
+    groups = [];
+  }
 }
 
 // `settings` is the app_config table: everyone may read the leadership_group_id
