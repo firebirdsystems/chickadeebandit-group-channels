@@ -45,20 +45,18 @@
       "everyone_values": ["all"],
       "insert_privileged_only": true,
       "write_privileged_only": true,
-      "bypass_group_setting": {
-        "settings_table": "settings",
-        "settings_key": "leadership_group_id"
-      }
+      "privileged_groups": [
+        { "settings_table": "settings", "settings_key": "leadership_group_id" }
+      ]
     },
     "channel_members": {
       "kind": "owner_only",
       "member_column": "member_id",
       "adults_bypass": false,
       "insert_privileged_only": true,
-      "bypass_group_setting": {
-        "settings_table": "settings",
-        "settings_key": "leadership_group_id"
-      }
+      "privileged_groups": [
+        { "settings_table": "settings", "settings_key": "leadership_group_id" }
+      ]
     },
     "messages": {
       "kind": "channel_scoped",
