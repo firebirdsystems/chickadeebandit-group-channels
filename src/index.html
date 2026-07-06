@@ -750,16 +750,21 @@ function demoDemoMessages(channelId) {
 }
 
 async function searchMessages(query) {
-  const q = `%${query}%`;
+  // `body` is encrypted at rest (not in db_plaintext_columns), so a SQL
+  // `WHERE lower(body) LIKE ?` compares ciphertext and matches nothing. Instead
+  // fetch recent messages — the channel_scoped policy already restricts these to
+  // channels the caller may see — and filter on the DECRYPTED body client-side.
+  const q = query.toLowerCase();
+  if (!q) return [];
   const res = await db(
-    `SELECT m.id, m.channel_id, m.author_name, m.body, m.created_at
-     FROM app_group_channels__messages m
-     WHERE lower(m.body) LIKE lower(?)
-     ORDER BY m.created_at DESC
-     LIMIT 50`,
-    [q]
+    `SELECT id, channel_id, author_name, body, created_at
+     FROM app_group_channels__messages
+     ORDER BY created_at DESC
+     LIMIT 500`
   );
-  return res.rows ?? [];
+  return (res.rows ?? [])
+    .filter(m => (m.body ?? "").toLowerCase().includes(q))
+    .slice(0, 50);
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────
