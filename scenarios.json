@@ -1,0 +1,68 @@
+{
+  "scenarios": [
+    {
+      "name": "invite-channel messages are hidden from non-members; channel metadata stays household-readable",
+      "members": { "member": "adult", "outsider": "adult" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, ?, 'invite', '[]', 0, ?, ?)",
+          "params": ["ch1", "Board", "board", "board only", "{{member}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+          "params": ["ch1", "{{member}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["msg1", "ch1", "{{member}}", "Member", "confidential board matter", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "db",
+          "as": "member",
+          "sql": "SELECT id, body FROM app_group_channels__messages",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "msg1" }] }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "SELECT id, body FROM app_group_channels__messages",
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "SELECT id, name FROM app_group_channels__channels",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "ch1" }] }
+        }
+      ]
+    },
+    {
+      "name": "non-privileged members cannot create channels or add themselves to a roster",
+      "members": { "member": "adult" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, ?, 'invite', '[]', 0, ?, ?)",
+          "params": ["ch1", "Board", "board", "board only", "seed", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "db",
+          "as": "member",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, ?, 'all', '[]', 0, ?, ?)",
+          "params": ["ch2", "Rogue", "rogue", "", "{{member}}", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "member",
+          "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+          "params": ["ch1", "{{member}}"],
+          "expect": { "status": 403 }
+        }
+      ]
+    }
+  ]
+}
