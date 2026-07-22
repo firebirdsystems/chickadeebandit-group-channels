@@ -1,5 +1,6 @@
 {
   "id": "group-channels",
+  "contexts": ["household", "shared_space"],
   "name": "Group Channels",
   "version": "1.1.0",
   "description": "Persistent named channels for org-level discussion. Leadership manages channels; everyone reads and posts in channels they belong to.",
