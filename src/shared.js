@@ -38,3 +38,14 @@ export function formatRelativeDate(iso) {
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
+
+/**
+ * Absolute clock time for a single message, e.g. "3:42 PM". Unlike
+ * formatRelativeDate this never goes stale once rendered, so it's what the
+ * message log uses (relative times stay for the channel list / search). Pass
+ * compact to drop the AM/PM for the tight hover gutter, e.g. "3:42".
+ */
+export function formatClockTime(iso, compact = false) {
+  const s = new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return compact ? s.replace(/\s?[AP]M$/i, "") : s;
+}

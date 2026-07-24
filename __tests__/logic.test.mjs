@@ -4,8 +4,8 @@ import {
   canManageChannels, canSeeChannel, canPostInChannel,
   slugify, resolveChannelMemberIds,
   renderBody, extractMentionedIds,
-  dateLabel, isSameDay,
-  formatRelativeDate,
+  dateLabel, isSameDay, shouldGroupMessages,
+  formatRelativeDate, formatClockTime,
 } from "../src/logic.js";
 import { testPrivilegedGateContract } from "./helpers/privileged-gate.mjs";
 
@@ -210,4 +210,33 @@ describe("extractMentionedIds", () => {
 describe("isSameDay", () => {
   it("same day returns true",      () => expect(isSameDay("2024-03-15T08:00:00Z", "2024-03-15T22:00:00Z")).toBe(true));
   it("different day returns false",() => expect(isSameDay("2024-03-15T08:00:00Z", "2024-03-16T08:00:00Z")).toBe(false));
+});
+
+// ── formatClockTime ───────────────────────────────────────────────────────────
+// TZ-independent assertions: check shape and the compact/full relationship, not
+// the absolute hour (which depends on the runner's timezone).
+describe("formatClockTime", () => {
+  const iso = "2024-03-15T15:42:00Z";
+  it("full form is H:MM AM/PM", () => expect(formatClockTime(iso)).toMatch(/^\d{1,2}:\d{2}\s[AP]M$/));
+  it("compact form drops the meridiem", () => expect(formatClockTime(iso, true)).toMatch(/^\d{1,2}:\d{2}$/));
+  it("compact equals full without the meridiem",
+    () => expect(formatClockTime(iso, true)).toBe(formatClockTime(iso).replace(/\s?[AP]M$/i, "")));
+});
+
+// ── shouldGroupMessages ───────────────────────────────────────────────────────
+// Uses noon-UTC times so the ±few-minute gaps never straddle a local midnight.
+describe("shouldGroupMessages", () => {
+  const m = (author_id, created_at) => ({ author_id, created_at });
+  it("groups same author within the window",
+    () => expect(shouldGroupMessages(m("a", "2024-03-15T12:00:00Z"), m("a", "2024-03-15T12:03:00Z"))).toBe(true));
+  it("does not group different authors",
+    () => expect(shouldGroupMessages(m("a", "2024-03-15T12:00:00Z"), m("b", "2024-03-15T12:03:00Z"))).toBe(false));
+  it("does not group past the 5-minute window",
+    () => expect(shouldGroupMessages(m("a", "2024-03-15T12:00:00Z"), m("a", "2024-03-15T12:06:00Z"))).toBe(false));
+  it("does not group across different days",
+    () => expect(shouldGroupMessages(m("a", "2024-03-15T12:00:00Z"), m("a", "2024-03-16T12:00:00Z"))).toBe(false));
+  it("does not group when there is no previous message",
+    () => expect(shouldGroupMessages(null, m("a", "2024-03-15T12:00:00Z"))).toBe(false));
+  it("does not group out-of-order (negative gap) messages",
+    () => expect(shouldGroupMessages(m("a", "2024-03-15T12:03:00Z"), m("a", "2024-03-15T12:00:00Z"))).toBe(false));
 });

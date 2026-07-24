@@ -216,6 +216,33 @@
     }
     .avatar-spacer { width: 32px; flex-shrink: 0; }
 
+    /* Collapsed follow-up messages sit tight under the first of a run. */
+    .msg-grouped { padding-top: 0; }
+
+    /* Clock time shown in the avatar gutter for grouped messages. */
+    .gutter-time {
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding-top: 3px;
+      overflow: visible;
+    }
+    .gutter-time span {
+      font-size: 0.62rem;
+      line-height: 1.4;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    /* Desktop: reveal the grouped time only when the row is hovered. */
+    @media (hover: hover) {
+      .gutter-time span { opacity: 0; transition: opacity 0.08s ease; }
+      .msg-row:hover .gutter-time span { opacity: 1; }
+    }
+    /* Touch: nothing to hover, so keep it faintly visible (Telegram-style). */
+    @media (hover: none) {
+      .gutter-time span { opacity: 0.55; }
+    }
+
     .msg-meta {
       font-size: 0.75rem;
       color: var(--muted);
@@ -526,10 +553,10 @@
 </div>
 
 <script type="module">
-import { memberColor, initial, esc, formatRelativeDate,
+import { memberColor, initial, esc, formatRelativeDate, formatClockTime,
          canManageChannels, canSeeChannel, canPostInChannel,
          slugify, resolveChannelMemberIds, renderBody,
-         extractMentionedIds, dateLabel, isSameDay } from "./logic.js";
+         extractMentionedIds, dateLabel, isSameDay, shouldGroupMessages } from "./logic.js";
 import { hubAlert, createFilesHelper } from "/hub-sdk.js";
 
 // ── Globals ───────────────────────────────────────────────────────────────────
@@ -973,24 +1000,31 @@ function renderMessages() {
   }
 
   let lastDate = null;
+  let prevMsg = null;
   for (const msg of messages) {
     const msgDate = msg.created_at.slice(0, 10);
+    let startsNewDay = false;
     if (msgDate !== lastDate) {
       html += `<div class="date-sep">${dateLabel(msg.created_at)}</div>`;
       lastDate = msgDate;
+      startsNewDay = true;
     }
-    html += messageHtml(msg);
+    // Never collapse the first message under a date separator into the prior day.
+    const grouped = !startsNewDay && shouldGroupMessages(prevMsg, msg);
+    html += messageHtml(msg, grouped);
+    prevMsg = msg;
   }
 
   wrap.innerHTML = html;
   wrap.scrollTop = wrap.scrollHeight;
 }
 
-function messageHtml(msg) {
+function messageHtml(msg, grouped = false) {
   const color = memberColor(msg.author_id);
   const initials = initial(msg.author_name);
   const bodyHtml = renderBody(msg.body, members);
-  const timeStr = formatRelativeDate(msg.created_at);
+  const timeStr = formatClockTime(msg.created_at);
+  const gutterTime = formatClockTime(msg.created_at, true);
 
   let filesHtml = "";
   if (msg.attachments?.length) {
@@ -1004,14 +1038,22 @@ function messageHtml(msg) {
     `</div>`;
   }
 
-  return `
-    <div class="msg-row">
-      <div class="avatar" style="background:${color}">${esc(initials)}</div>
-      <div style="flex:1;min-width:0">
-        <div class="msg-meta">
+  const leftCol = grouped
+    ? `<div class="avatar-spacer gutter-time"><span>${esc(gutterTime)}</span></div>`
+    : `<div class="avatar" style="background:${color}">${esc(initials)}</div>`;
+
+  const header = grouped
+    ? ""
+    : `<div class="msg-meta">
           <strong>${esc(msg.author_name)}</strong>
           <span>${esc(timeStr)}</span>
-        </div>
+        </div>`;
+
+  return `
+    <div class="msg-row${grouped ? " msg-grouped" : ""}">
+      ${leftCol}
+      <div style="flex:1;min-width:0">
+        ${header}
         <div class="msg-body">${bodyHtml}</div>
         ${filesHtml}
       </div>

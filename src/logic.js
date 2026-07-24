@@ -1,5 +1,5 @@
-import { AVATAR_COLORS, memberColor, initial, esc, isAdult, formatRelativeDate } from "./shared.js";
-export { AVATAR_COLORS, memberColor, initial, esc, isAdult, formatRelativeDate };
+import { AVATAR_COLORS, memberColor, initial, esc, isAdult, formatRelativeDate, formatClockTime } from "./shared.js";
+export { AVATAR_COLORS, memberColor, initial, esc, isAdult, formatRelativeDate, formatClockTime };
 
 // ── Access control ─────────────────────────────────────────────────────────────
 
@@ -146,4 +146,19 @@ export function isSameDay(isoA, isoB) {
   return a.getFullYear() === b.getFullYear() &&
          a.getMonth()    === b.getMonth()    &&
          a.getDate()     === b.getDate();
+}
+
+/**
+ * Whether `curr` should collapse into the previous message `prev` — same author,
+ * same day, and posted within `windowMs` (default 5 min). Grouped messages hide
+ * the avatar and name/time header so a back-and-forth reads as one block. The
+ * caller must NOT group the first message after a date separator (different day
+ * already fails here, but a same-day boundary can't occur across a separator).
+ */
+export function shouldGroupMessages(prev, curr, windowMs = 5 * 60_000) {
+  if (!prev || !curr) return false;
+  if (prev.author_id !== curr.author_id) return false;
+  if (!isSameDay(prev.created_at, curr.created_at)) return false;
+  const gap = new Date(curr.created_at) - new Date(prev.created_at);
+  return gap >= 0 && gap <= windowMs;
 }
