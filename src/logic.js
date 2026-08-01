@@ -162,3 +162,13 @@ export function shouldGroupMessages(prev, curr, windowMs = 5 * 60_000) {
   const gap = new Date(curr.created_at) - new Date(prev.created_at);
   return gap >= 0 && gap <= windowMs;
 }
+
+/**
+ * Fields the message search matches against (see hub-sdk `searchMatch`). The
+ * author's name counts as well as the body, so "sam parking" finds what Sam
+ * said about parking. Matching happens on the DECRYPTED row client-side —
+ * `body` is encrypted at rest, so no SQL LIKE could ever do this.
+ */
+export function searchableFields(message) {
+  return [message.body, message.author_name];
+}

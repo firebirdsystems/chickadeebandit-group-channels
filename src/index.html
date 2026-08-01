@@ -556,8 +556,8 @@
 import { memberColor, initial, esc, formatRelativeDate, formatClockTime,
          canManageChannels, canSeeChannel, canPostInChannel,
          slugify, resolveChannelMemberIds, renderBody,
-         extractMentionedIds, dateLabel, isSameDay, shouldGroupMessages } from "./logic.js";
-import { hubAlert, createFilesHelper } from "/hub-sdk.js";
+         extractMentionedIds, dateLabel, isSameDay, shouldGroupMessages, searchableFields } from "./logic.js";
+import { hubAlert, createFilesHelper, searchMatch } from "/hub-sdk.js";
 
 // ── Globals ───────────────────────────────────────────────────────────────────
 const CONTEXT      = window.__CONTEXT_URL  ?? "";
@@ -810,8 +810,7 @@ async function searchMessages(query) {
   // `WHERE lower(body) LIKE ?` compares ciphertext and matches nothing. Instead
   // fetch recent messages — the channel_scoped policy already restricts these to
   // channels the caller may see — and filter on the DECRYPTED body client-side.
-  const q = query.toLowerCase();
-  if (!q) return [];
+  if (!query.trim()) return [];
   const res = await db(
     `SELECT id, channel_id, author_name, body, created_at
      FROM app_group_channels__messages
@@ -819,7 +818,7 @@ async function searchMessages(query) {
      LIMIT 500`
   );
   return (res.rows ?? [])
-    .filter(m => (m.body ?? "").toLowerCase().includes(q))
+    .filter(m => searchMatch(query, searchableFields(m)))
     .slice(0, 50);
 }
 
@@ -1107,14 +1106,19 @@ async function renderSearchPane(main) {
   if (!results.length) {
     html += `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No results</div><div class="empty-sub">Try different keywords</div></div>`;
   } else {
-    const q = searchQuery.toLowerCase();
+    // The matcher requires every token to hit some field, so highlight per
+    // token — the query as one literal string usually isn't in the body.
+    const tokens = searchQuery.split(/\s+/).filter(Boolean);
     for (const r of results) {
       const ch = chMap[r.channel_id];
       if (!ch) continue;
-      const highlighted = esc(r.body).replace(
-        new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
-        m => `<mark>${m}</mark>`
-      );
+      let highlighted = esc(r.body);
+      for (const token of tokens) {
+        highlighted = highlighted.replace(
+          new RegExp(esc(token).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"),
+          m => `<mark>${m}</mark>`
+        );
+      }
       html += `
         <div class="search-result-item" onclick="window.jumpToMessage('${esc(r.channel_id)}')">
           <div class="search-result-ch">#${esc(ch.name)}</div>

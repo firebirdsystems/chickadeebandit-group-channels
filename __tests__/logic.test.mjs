@@ -5,7 +5,7 @@ import {
   slugify, resolveChannelMemberIds,
   renderBody, extractMentionedIds,
   dateLabel, isSameDay, shouldGroupMessages,
-  formatRelativeDate, formatClockTime,
+  formatRelativeDate, formatClockTime, searchableFields,
 } from "../src/logic.js";
 import { testPrivilegedGateContract } from "./helpers/privileged-gate.mjs";
 
@@ -239,4 +239,12 @@ describe("shouldGroupMessages", () => {
     () => expect(shouldGroupMessages(null, m("a", "2024-03-15T12:00:00Z"))).toBe(false));
   it("does not group out-of-order (negative gap) messages",
     () => expect(shouldGroupMessages(m("a", "2024-03-15T12:03:00Z"), m("a", "2024-03-15T12:00:00Z"))).toBe(false));
+});
+
+describe("searchableFields", () => {
+  it("matches on the author as well as the body", () => {
+    const fields = searchableFields({ body: "who is on parking duty?", author_name: "Sam" });
+    expect(fields).toContain("who is on parking duty?");
+    expect(fields).toContain("Sam");
+  });
 });
