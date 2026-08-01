@@ -42,7 +42,7 @@
     "settings_table": "settings",
     "keys": ["leadership_group_id"]
   },
-  "db_plaintext_columns": ["membership_type", "membership_roles", "name"],
+  "db_plaintext_columns": ["membership_type", "membership_roles", "name", "slug"],
   "row_policies": {
     "settings": {
       "kind": "app_config"

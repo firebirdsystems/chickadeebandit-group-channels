@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS app_group_channels__channels (
   created_at       TEXT NOT NULL,
   archived_at      TEXT,
   PRIMARY KEY (id),
+  -- `slug` must stay in db_plaintext_columns: it is derived from `name` (already
+  -- plaintext), and this UNIQUE is the one-channel-per-name guarantee. Encrypted,
+  -- every write stores a fresh random IV, so two channels named the same never
+  -- collide and the constraint silently guaranteed nothing.
   UNIQUE (slug)
 );
 
