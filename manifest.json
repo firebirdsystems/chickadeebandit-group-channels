@@ -28,13 +28,21 @@
     "max_store_reads_per_day": 2000,
     "max_store_writes_per_day": 500
   },
+  "member_references": {
+    "channels": { "column": "created_by", "on_removed": "keep" },
+    "channel_members": { "column": "member_id", "on_removed": "delete", "id_column": "rowid" },
+    "messages": { "column": "author_id", "on_removed": "keep" },
+    "message_files": { "column": "author_id", "on_removed": "keep" },
+    "channel_subscriptions": { "column": "member_id", "on_removed": "delete", "id_column": "rowid" },
+    "member_last_read": { "column": "member_id", "on_removed": "delete", "id_column": "rowid" }
+  },
   "nav": { "label": "Channels" },
   "icon": "#️⃣",
   "admin_config": {
     "settings_table": "settings",
     "keys": ["leadership_group_id"]
   },
-  "db_plaintext_columns": ["membership_type", "membership_roles"],
+  "db_plaintext_columns": ["membership_type", "membership_roles", "name"],
   "row_policies": {
     "settings": {
       "kind": "app_config"

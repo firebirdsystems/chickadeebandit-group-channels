@@ -615,6 +615,35 @@ async function db(sql, params = []) {
   return res.json();
 }
 
+// Atomic multi-statement form of /api/db, capped at 25 statements server-side.
+// Rebuilding a custom channel's roster is a DELETE followed by one INSERT per
+// member; issued separately, anything that interrupted the sequence left the
+// channel with NO members — and `messages` is channel_scoped on that table, so
+// every message in it became unreadable to everyone but leadership.
+const MAX_BATCH = 25;
+
+async function dbBatch(statements) {
+  if (!DB || !statements.length) return [];
+  const res = await fetch(DB, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ statements }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.error) throw new Error(body?.error ?? `batch failed (${res.status})`);
+  return body.results ?? [];
+}
+
+// Chunks past the cap lose atomicity at the chunk boundary, so the DELETE rides
+// in the FIRST chunk with as many INSERTs as fit. A channel of more than 24
+// custom members can still end up partially rebuilt if a later chunk fails, but
+// it can no longer end up empty.
+async function dbBatchAll(statements) {
+  for (let i = 0; i < statements.length; i += MAX_BATCH) {
+    await dbBatch(statements.slice(i, i + MAX_BATCH));
+  }
+}
+
 // ── Data loaders ─────────────────────────────────────────────────────────────
 async function loadMembers() {
   if (!CONTEXT) {
@@ -1506,13 +1535,13 @@ window.submitChannel = async function(existingId) {
         [name, desc, membershipType, membershipRoles, existingId]
       );
       if (membershipType === "custom") {
-        await db(`DELETE FROM app_group_channels__channel_members WHERE channel_id = ?`, [existingId]);
-        await Promise.all(customMemberIds.map(mid =>
-          db(
-            `INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
-            [existingId, mid]
-          )
-        ));
+        await dbBatchAll([
+          { sql: `DELETE FROM app_group_channels__channel_members WHERE channel_id = ?`, params: [existingId] },
+          ...customMemberIds.map(mid => ({
+            sql: `INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?) ON CONFLICT DO NOTHING`,
+            params: [existingId, mid],
+          })),
+        ]);
       } else {
         await db(`DELETE FROM app_group_channels__channel_members WHERE channel_id = ?`, [existingId]);
       }
