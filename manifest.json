@@ -37,6 +37,18 @@
     "member_last_read": { "column": "member_id", "on_removed": "delete", "id_column": "rowid" }
   },
   "nav": { "label": "Channels" },
+  "glance": {
+    "source": {
+      "kind": "sql",
+      "query": "SELECT COUNT(*) AS n FROM app_group_channels__messages m LEFT JOIN app_group_channels__member_last_read r ON r.channel_id = m.channel_id WHERE (r.last_read_at IS NULL OR m.created_at > r.last_read_at) LIMIT 1"
+    },
+    "display": {
+      "template": "badge",
+      "count": "n",
+      "label": "unread messages",
+      "severity": "info"
+    }
+  },
   "icon": "#️⃣",
   "admin_config": {
     "settings_table": "settings",
