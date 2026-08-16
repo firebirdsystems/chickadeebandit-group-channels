@@ -1,8 +1,11 @@
 {
   "id": "group-channels",
-  "contexts": ["household", "shared_space"],
+  "contexts": [
+    "household",
+    "shared_space"
+  ],
   "name": "Group Channels",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Persistent named channels for org-level discussion. Leadership manages channels; everyone reads and posts in channels they belong to.",
   "entrypoint": "index.html",
   "runtime": "static",
@@ -15,7 +18,10 @@
     "organization"
   ],
   "data_access": {
-    "reads": ["family.members", "family.groups"],
+    "reads": [
+      "family.members",
+      "family.groups"
+    ],
     "writes": []
   },
   "permissions": {
@@ -29,14 +35,37 @@
     "max_store_writes_per_day": 500
   },
   "member_references": {
-    "channels": { "column": "created_by", "on_removed": "keep" },
-    "channel_members": { "column": "member_id", "on_removed": "delete", "id_column": "rowid" },
-    "messages": { "column": "author_id", "on_removed": "keep" },
-    "message_files": { "column": "author_id", "on_removed": "keep" },
-    "channel_subscriptions": { "column": "member_id", "on_removed": "delete", "id_column": "rowid" },
-    "member_last_read": { "column": "member_id", "on_removed": "delete", "id_column": "rowid" }
+    "channels": {
+      "column": "created_by",
+      "on_removed": "keep"
+    },
+    "channel_members": {
+      "column": "member_id",
+      "on_removed": "delete",
+      "id_column": "rowid"
+    },
+    "messages": {
+      "column": "author_id",
+      "on_removed": "keep"
+    },
+    "message_files": {
+      "column": "author_id",
+      "on_removed": "keep"
+    },
+    "channel_subscriptions": {
+      "column": "member_id",
+      "on_removed": "delete",
+      "id_column": "rowid"
+    },
+    "member_last_read": {
+      "column": "member_id",
+      "on_removed": "delete",
+      "id_column": "rowid"
+    }
   },
-  "nav": { "label": "Channels" },
+  "nav": {
+    "label": "Channels"
+  },
   "glance": {
     "source": {
       "kind": "sql",
@@ -49,12 +78,19 @@
       "severity": "info"
     }
   },
-  "icon": "#️⃣",
+  "icon": "#\ufe0f\u20e3",
   "admin_config": {
     "settings_table": "settings",
-    "keys": ["leadership_group_id"]
+    "keys": [
+      "leadership_group_id"
+    ]
   },
-  "db_plaintext_columns": ["membership_type", "membership_roles", "name", "slug"],
+  "db_plaintext_columns": [
+    "membership_type",
+    "membership_roles",
+    "name",
+    "slug"
+  ],
   "row_policies": {
     "settings": {
       "kind": "app_config"
@@ -63,11 +99,16 @@
       "kind": "owner_or_visibility",
       "member_column": "created_by",
       "visibility_column": "visibility",
-      "everyone_values": ["all"],
+      "everyone_values": [
+        "all"
+      ],
       "insert_privileged_only": true,
       "write_privileged_only": true,
       "privileged_groups": [
-        { "settings_table": "settings", "settings_key": "leadership_group_id" }
+        {
+          "settings_table": "settings",
+          "settings_key": "leadership_group_id"
+        }
       ]
     },
     "channel_members": {
@@ -76,7 +117,10 @@
       "adults_bypass": false,
       "insert_privileged_only": true,
       "privileged_groups": [
-        { "settings_table": "settings", "settings_key": "leadership_group_id" }
+        {
+          "settings_table": "settings",
+          "settings_key": "leadership_group_id"
+        }
       ]
     },
     "messages": {
@@ -96,7 +140,11 @@
         "timestamp_column": "created_at",
         "override_key": "message_history",
         "dependent_tables": [
-          { "table": "message_files", "foreign_key": "message_id", "file_id_column": "file_id" }
+          {
+            "table": "message_files",
+            "foreign_key": "message_id",
+            "file_id_column": "file_id"
+          }
         ]
       }
     },
@@ -123,6 +171,11 @@
       "member_column": "member_id",
       "adults_bypass": false
     }
+  },
+  "delete_file_columns": {
+    "message_files": [
+      "file_id"
+    ]
   },
   "subscription_notify": {
     "subscription_table": "channel_subscriptions",
