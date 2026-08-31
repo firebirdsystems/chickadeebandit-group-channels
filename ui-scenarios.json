@@ -1,0 +1,111 @@
+{
+  "scenarios": [
+    {
+      "name": "channel management controls follow the configured leadership group, not membership of any group",
+      "members": {
+        "viewer": "adult",
+        "other": "adult"
+      },
+      "steps": [
+        {
+          "action": "seedGroup",
+          "group": "social",
+          "name": "Social Committee",
+          "members": [
+            "other"
+          ]
+        },
+        {
+          "action": "seedGroup",
+          "group": "lead",
+          "name": "Leadership",
+          "members": [
+            "viewer"
+          ]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__settings (key, value) VALUES ('leadership_group_id', ?)",
+          "params": [
+            "{{group:social}}"
+          ]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, 'Announcements', 'announcements', ?, 'all', '[]', 0, ?, datetime('now'), 'all')",
+          "params": [
+            "ui-chan",
+            "Building-wide notices.",
+            "{{other}}"
+          ]
+        },
+        {
+          "action": "open",
+          "as": "viewer"
+        },
+        {
+          "action": "expectVisible",
+          "as": "viewer",
+          "selector": "[data-testid=\"channel-item\"][data-channel-id=\"ui-chan\"]"
+        },
+        {
+          "action": "expectHidden",
+          "as": "viewer",
+          "selector": "[data-testid=\"new-channel\"]"
+        },
+        {
+          "action": "click",
+          "as": "viewer",
+          "selector": "[data-testid=\"channel-item\"][data-channel-id=\"ui-chan\"]"
+        },
+        {
+          "action": "expectVisible",
+          "as": "viewer",
+          "selector": "[data-testid=\"channel-header\"][data-channel-id=\"ui-chan\"]"
+        },
+        {
+          "action": "expectCount",
+          "as": "viewer",
+          "selector": "[data-testid=\"channel-manage\"]",
+          "count": 0
+        },
+        {
+          "action": "seedRaw",
+          "sql": "UPDATE app_group_channels__settings SET value = ? WHERE key = 'leadership_group_id'",
+          "params": [
+            "{{group:lead}}"
+          ]
+        },
+        {
+          "action": "reload",
+          "as": "viewer"
+        },
+        {
+          "action": "expectVisible",
+          "as": "viewer",
+          "selector": "[data-testid=\"channel-item\"][data-channel-id=\"ui-chan\"]"
+        },
+        {
+          "action": "expectVisible",
+          "as": "viewer",
+          "selector": "[data-testid=\"new-channel\"]"
+        },
+        {
+          "action": "click",
+          "as": "viewer",
+          "selector": "[data-testid=\"channel-item\"][data-channel-id=\"ui-chan\"]"
+        },
+        {
+          "action": "expectVisible",
+          "as": "viewer",
+          "selector": "[data-testid=\"channel-header\"][data-channel-id=\"ui-chan\"]"
+        },
+        {
+          "action": "expectVisible",
+          "as": "viewer",
+          "selector": "[data-testid=\"channel-manage\"]"
+        }
+      ]
+    }
+  ]
+}

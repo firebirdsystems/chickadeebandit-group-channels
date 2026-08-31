@@ -535,7 +535,7 @@
     <div class="sidebar-header">
       <span class="sidebar-title">Channels</span>
       <button class="btn-icon" id="settings-btn" title="Channel manager settings" style="display:none">⚙️</button>
-      <button class="btn-icon" id="new-channel-btn" title="New channel" style="display:none">＋</button>
+      <button class="btn-icon" id="new-channel-btn" data-testid="new-channel" title="New channel" style="display:none">＋</button>
     </div>
     <div class="sidebar-search">
       <input type="search" id="search-input" placeholder="Search messages…" autocomplete="off" />
@@ -926,7 +926,7 @@ function channelItemHtml(ch) {
   const active = ch.id === currentChannelId ? "active" : "";
   const archived = ch.archived_at ? "archived-ch" : "";
   const unread = hasUnread(ch);
-  return `<div class="channel-item ${active} ${archived}" onclick="window.openChannel('${esc(ch.id)}')">
+  return `<div class="channel-item ${active} ${archived}" data-testid="channel-item" data-channel-id="${esc(ch.id)}" onclick="window.openChannel('${esc(ch.id)}')">
     <span class="ch-hash">#</span>
     <span class="ch-name" style="${unread ? "font-weight:600;color:var(--text)" : ""}">${esc(ch.name)}</span>
     ${unread ? `<span class="ch-unread"></span>` : ""}
@@ -956,7 +956,7 @@ function renderMain() {
   const canManage = canManageCh();
 
   main.innerHTML = `
-    <div class="channel-header">
+    <div class="channel-header" data-testid="channel-header" data-channel-id="${esc(ch.id)}">
       <span class="channel-header-hash">#</span>
       <span class="channel-header-name">${esc(ch.name)}</span>
       ${ch.description ? `<span class="channel-header-desc">${esc(ch.description)}</span>` : ""}
@@ -972,7 +972,7 @@ function renderMain() {
           </button>
         ` : ""}
         ${canManage ? `
-          <div class="ch-menu-anchor">
+          <div class="ch-menu-anchor" data-testid="channel-manage">
             <button class="btn btn-ghost btn-sm" onclick="window.toggleChMenu(event)">Manage ▾</button>
           </div>
         ` : ""}
