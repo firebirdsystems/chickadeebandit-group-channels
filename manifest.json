@@ -14,7 +14,7 @@
     "settings": {"sql": "SELECT value AS v FROM app_group_channels__settings WHERE key = 'leadership_group_id' LIMIT 1"},
     "channels": {"sql": "SELECT * FROM app_group_channels__channels ORDER BY is_system DESC, name"},
     "channel_members": {"sql": "SELECT * FROM app_group_channels__channel_members"},
-    "messages": {"sql": "SELECT channel_id, MAX(created_at) AS last_at FROM app_group_channels__messages GROUP BY channel_id"}
+    "messages": {"sql": "SELECT channel_id, MAX(created_at) AS last_at FROM app_group_channels__messages WHERE created_at >= date(?, '-120 days') GROUP BY channel_id", "params": [":today"]}
   },
   "category": "organization",
   "tags": [

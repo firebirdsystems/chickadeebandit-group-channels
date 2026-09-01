@@ -557,7 +557,7 @@ import { memberColor, initial, esc, formatRelativeDate, formatClockTime,
          canManageChannels, canSeeChannel, canPostInChannel,
          slugify, resolveChannelMemberIds, renderBody,
          extractMentionedIds, dateLabel, isSameDay, shouldGroupMessages, searchableFields } from "./logic.js";
-import { hubAlert, createFilesHelper, searchMatch } from "/hub-sdk.js";
+import { hubAlert, createFilesHelper, searchMatch, hubToday } from "/hub-sdk.js";
 
 // ── Globals ───────────────────────────────────────────────────────────────────
 const CONTEXT      = window.__CONTEXT_URL  ?? "";
@@ -742,12 +742,22 @@ async function loadLastRead() {
 // Newest message timestamp per channel, for unread indicators. The channel_scoped
 // policy on `messages` means this only returns channels the caller can see, so no
 // restricted channel leaks in. GROUP BY parses fine through the policy rewriter.
+// The 120-day window bounds the scan: a channel silent longer than that simply
+// has no entry, and hasUnread treats that as read — a four-month-old unread dot
+// is noise, and messages expire at 365 days anyway. The date param must be the
+// household-local day, which is what the hub binds `:today` to. hubToday() is
+// the client side of that contract; a hand-rolled `new Date()` here would be the
+// VIEWER DEVICE's date, so around midnight or with a travelling member the two
+// cutoffs differ by a day and the preload silently stops matching.
+
 async function loadChannelLatest() {
   if (!DB) return;
   const res = await db(
     `SELECT channel_id, MAX(created_at) AS last_at
      FROM app_group_channels__messages
-     GROUP BY channel_id`
+     WHERE created_at >= date(?, '-120 days')
+     GROUP BY channel_id`,
+    [hubToday()]
   );
   latestMsgMap = {};
   for (const r of (res.rows ?? [])) latestMsgMap[r.channel_id] = r.last_at;
