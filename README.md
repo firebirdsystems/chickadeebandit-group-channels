@@ -1,5 +1,7 @@
 # Group Channels
 
+A [Chickadee Bandit](https://chickadeebandit.com/app-library/group-channels) app.
+
 Persistent named channels for org-level discussion. Leadership manages channels;
 everyone reads and posts in channels they belong to.
 
