@@ -7,16 +7,18 @@
 ALTER TABLE app_group_channels__message_files ADD COLUMN channel_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE app_group_channels__message_files ADD COLUMN author_id  TEXT NOT NULL DEFAULT '';
 
--- Backfill existing rows from their parent message.
+-- Backfill existing rows from their parent message. COALESCE to the column's
+-- own '' default: a file row whose message is gone would otherwise make the
+-- subquery NULL, fail NOT NULL, and abort this update for the whole household.
 UPDATE app_group_channels__message_files
-SET channel_id = (
+SET channel_id = COALESCE((
       SELECT m.channel_id FROM app_group_channels__messages m
       WHERE m.id = app_group_channels__message_files.message_id
-    ),
-    author_id = (
+    ), ''),
+    author_id = COALESCE((
       SELECT m.author_id FROM app_group_channels__messages m
       WHERE m.id = app_group_channels__message_files.message_id
-    )
+    ), '')
 WHERE channel_id = '' OR author_id = '';
 
 CREATE INDEX IF NOT EXISTS message_files_channel_idx
