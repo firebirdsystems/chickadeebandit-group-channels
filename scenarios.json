@@ -63,6 +63,302 @@
           "expect": { "status": 403 }
         }
       ]
+    },
+    {
+      "name": "a child reads and posts only in channels open to all or to the child role, stamped as themselves",
+      "members": { "kid": "child", "parent": "adult" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, '', ?, ?, 0, ?, ?)",
+          "params": ["cA", "Everyone", "everyone", "all", "[]", "{{parent}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, '', ?, ?, 0, ?, ?)",
+          "params": ["cG", "Grown-ups", "grown-ups", "role", "[\"adult\"]", "{{parent}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, '', ?, ?, 0, ?, ?)",
+          "params": ["cF", "Family", "family", "role", "[\"adult\",\"child\"]", "{{parent}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mA", "cA", "{{parent}}", "Parent", "hello all", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mG", "cG", "{{parent}}", "Parent", "grown-up talk", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mF", "cF", "{{parent}}", "Parent", "family plans", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "SELECT id FROM app_group_channels__messages",
+          "expect": { "status": 200, "rowCount": 2, "rowsContain": [{ "id": "mA" }, { "id": "mF" }] }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mK1", "cG", "{{kid}}", "Kid", "sneaky", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mK2", "cF", "{{parent}}", "Kid", "hi family", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "SELECT id, author_id FROM app_group_channels__messages WHERE id = 'mK2'",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "author_id": "scn-kid" }] }
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "SELECT id FROM app_group_channels__messages",
+          "expect": { "status": 200, "rowCount": 4 }
+        }
+      ]
+    },
+    {
+      "name": "a child cannot edit or delete an adult's message",
+      "members": { "kid": "child", "parent": "adult" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, '', ?, ?, 0, ?, ?)",
+          "params": ["cA", "Everyone", "everyone", "all", "[]", "{{parent}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mA", "cA", "{{parent}}", "Parent", "original", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "UPDATE app_group_channels__messages SET body = 'tampered' WHERE id = 'mA'",
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "DELETE FROM app_group_channels__messages WHERE id = 'mA'",
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "SELECT id, body FROM app_group_channels__messages WHERE id = 'mA'",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "body": "original" }] }
+        }
+      ]
+    },
+    {
+      "name": "a granted guest sees role channels only when the guest role is listed, unlike a child",
+      "members": { "visitor": "guest", "kid": "child", "parent": "adult" },
+      "granted": ["visitor"],
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, '', ?, ?, 0, ?, ?)",
+          "params": ["cF", "Family", "family", "role", "[\"adult\",\"child\"]", "{{parent}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, '', ?, ?, 0, ?, ?)",
+          "params": [
+            "cV",
+            "Visitors",
+            "visitors",
+            "role",
+            "[\"adult\",\"guest\"]",
+            "{{parent}}",
+            "2026-01-01T00:00:00Z"
+          ]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mF", "cF", "{{parent}}", "Parent", "family plans", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mV", "cV", "{{parent}}", "Parent", "welcome guests", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "db",
+          "as": "visitor",
+          "sql": "SELECT id FROM app_group_channels__messages",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "mV" }] }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "SELECT id FROM app_group_channels__messages",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "mF" }] }
+        },
+        {
+          "action": "db",
+          "as": "visitor",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mX", "cF", "{{visitor}}", "Visitor", "hi", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "visitor",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mY", "cV", "{{visitor}}", "Visitor", "thanks", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["mZ", "cV", "{{kid}}", "Kid", "hi", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 403 }
+        }
+      ]
+    },
+    {
+      "name": "a leadership-group member creates an invite channel and enrolls another member, who then reads it; a plain adult outside the group is refused",
+      "members": { "leader": "adult", "invitee": "adult", "outsider": "adult" },
+      "steps": [
+        { "action": "seedGroup", "group": "leadership", "name": "Leadership", "members": ["leader"] },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__settings (key, value) VALUES ('leadership_group_id', ?)",
+          "params": ["{{group:leadership}}"]
+        },
+        {
+          "action": "db",
+          "as": "leader",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, 'invite', '[]', 0, ?, ?, 'all')",
+          "params": ["ch-board", "Board", "board", "board only", "{{leader}}", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, 'all', '[]', 0, ?, ?, 'all')",
+          "params": ["ch-rogue", "Rogue", "rogue", "", "{{outsider}}", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "leader",
+          "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+          "params": ["ch-board", "{{invitee}}"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+          "params": ["ch-board", "{{outsider}}"],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES ('msg1', 'ch-board', ?, 'Leader', 'agenda', '2026-01-02T00:00:00Z')",
+          "params": ["{{leader}}"]
+        },
+        {
+          "action": "db",
+          "as": "invitee",
+          "sql": "SELECT id FROM app_group_channels__messages",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "msg1" }] }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "SELECT id FROM app_group_channels__messages",
+          "expect": { "status": 200, "rowCount": 0 }
+        }
+      ]
+    },
+    {
+      "name": "a leadership-group member renames a channel and removes a roster member; a plain adult outside the group cannot",
+      "members": { "leader": "adult", "invitee": "adult", "outsider": "adult" },
+      "steps": [
+        { "action": "seedGroup", "group": "leadership", "name": "Leadership", "members": ["leader"] },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__settings (key, value) VALUES ('leadership_group_id', ?)",
+          "params": ["{{group:leadership}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES ('ch-board', 'Board', 'board', '', 'invite', '[]', 0, ?, '2026-01-01T00:00:00Z')",
+          "params": ["{{leader}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES ('ch-board', ?)",
+          "params": ["{{invitee}}"]
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "UPDATE app_group_channels__channels SET name = 'Hijacked' WHERE id = ?",
+          "params": ["ch-board"],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "DELETE FROM app_group_channels__channel_members WHERE channel_id = ? AND member_id = ?",
+          "params": ["ch-board", "{{invitee}}"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "invitee",
+          "sql": "SELECT channel_id FROM app_group_channels__channel_members",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "channel_id": "ch-board" }] }
+        },
+        {
+          "action": "db",
+          "as": "leader",
+          "sql": "UPDATE app_group_channels__channels SET name = 'Directors' WHERE id = ?",
+          "params": ["ch-board"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "leader",
+          "sql": "DELETE FROM app_group_channels__channel_members WHERE channel_id = ? AND member_id = ?",
+          "params": ["ch-board", "{{invitee}}"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "invitee",
+          "sql": "SELECT channel_id FROM app_group_channels__channel_members",
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "SELECT name FROM app_group_channels__channels WHERE id = ?",
+          "params": ["ch-board"],
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "name": "Directors" }] }
+        }
+      ]
     }
   ]
 }
