@@ -359,6 +359,215 @@
           "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "name": "Directors" }] }
         }
       ]
+    },
+    {
+      "name": "in a space an invite-only channel's attachments are hidden from everyone off its roster, the steward included; an outsider cannot attach a file into it and a roster member cannot rename or remove someone else's attachment",
+      "context": "shared_space",
+      "members": { "steward": "admin", "author": "adult", "insider": "adult", "outsider": "adult" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES ('ch1', 'Board', 'board', 'board only', 'invite', '[]', 0, ?, '2026-01-01T00:00:00Z')",
+          "params": ["{{author}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES ('ch1', ?), ('ch1', ?)",
+          "params": ["{{author}}", "{{insider}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES ('msg1', 'ch1', ?, 'Author', 'Draft budget attached', '2026-01-01T00:00:00Z')",
+          "params": ["{{author}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__message_files (id, message_id, channel_id, author_id, file_id, file_name, mime_type, size_bytes, created_at) VALUES ('f1', 'msg1', 'ch1', ?, 'file-1', 'budget-draft.pdf', 'application/pdf', 1024, '2026-01-01T00:00:00Z')",
+          "params": ["{{author}}"]
+        },
+        {
+          "action": "db",
+          "as": "insider",
+          "sql": "SELECT id, file_id, file_name FROM app_group_channels__message_files WHERE message_id = ?",
+          "params": ["msg1"],
+          "expect": {
+            "status": 200,
+            "rowCount": 1,
+            "rowsContain": [{ "id": "f1", "file_id": "file-1", "file_name": "budget-draft.pdf" }]
+          }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "SELECT id, file_id, file_name FROM app_group_channels__message_files",
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "steward",
+          "sql": "SELECT id, file_id, file_name FROM app_group_channels__message_files",
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "outsider",
+          "sql": "INSERT INTO app_group_channels__message_files (id, message_id, channel_id, author_id, file_id, file_name, mime_type, size_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "params": [
+            "f2",
+            "msg1",
+            "ch1",
+            "{{outsider}}",
+            "file-2",
+            "spam.pdf",
+            "application/pdf",
+            10,
+            "2026-01-02T00:00:00Z"
+          ],
+          "expect": { "status": 403 }
+        },
+        {
+          "action": "db",
+          "as": "insider",
+          "sql": "UPDATE app_group_channels__message_files SET file_name = 'renamed.pdf' WHERE id = ?",
+          "params": ["f1"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "insider",
+          "sql": "DELETE FROM app_group_channels__message_files WHERE id = ?",
+          "params": ["f1"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "author",
+          "sql": "SELECT id, file_name FROM app_group_channels__message_files",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "f1", "file_name": "budget-draft.pdf" }] }
+        }
+      ]
+    },
+    {
+      "name": "in a space which channels a member follows and when they last read are theirs alone: the steward and other participants cannot see them, mark them read or unfollow them, and a read marker written for someone else lands on the writer",
+      "context": "shared_space",
+      "members": { "steward": "admin", "reader": "adult", "other": "adult" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES ('ch1', 'General', 'general', '', 'all', '[]', 0, ?, '2026-01-01T00:00:00Z')",
+          "params": ["{{steward}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES ('ch1', ?, '2026-01-01T00:00:00Z')",
+          "params": ["{{reader}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES ('ch1', ?)",
+          "params": ["{{reader}}"]
+        },
+        {
+          "action": "db",
+          "as": "steward",
+          "sql": "SELECT member_id, last_read_at FROM app_group_channels__member_last_read",
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "steward",
+          "sql": "SELECT member_id FROM app_group_channels__channel_subscriptions",
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "other",
+          "sql": "SELECT member_id FROM app_group_channels__channel_subscriptions WHERE channel_id = ?",
+          "params": ["ch1"],
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "steward",
+          "sql": "UPDATE app_group_channels__member_last_read SET last_read_at = '2099-01-01T00:00:00Z' WHERE channel_id = ?",
+          "params": ["ch1"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "other",
+          "sql": "DELETE FROM app_group_channels__channel_subscriptions WHERE channel_id = ? AND member_id = ?",
+          "params": ["ch1", "{{reader}}"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "other",
+          "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, ?)",
+          "params": ["ch2", "{{reader}}", "2099-01-01T00:00:00Z"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "db",
+          "as": "other",
+          "sql": "SELECT channel_id, member_id FROM app_group_channels__member_last_read",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "channel_id": "ch2", "member_id": "scn-other" }] }
+        },
+        {
+          "action": "db",
+          "as": "reader",
+          "sql": "SELECT channel_id, member_id, last_read_at FROM app_group_channels__member_last_read",
+          "expect": {
+            "status": 200,
+            "rowCount": 1,
+            "rowsContain": [{ "channel_id": "ch1", "member_id": "scn-reader", "last_read_at": "2026-01-01T00:00:00Z" }]
+          }
+        },
+        {
+          "action": "db",
+          "as": "reader",
+          "sql": "SELECT channel_id, member_id FROM app_group_channels__channel_subscriptions",
+          "expect": {
+            "status": 200,
+            "rowCount": 1,
+            "rowsContain": [{ "channel_id": "ch1", "member_id": "scn-reader" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "in a household a parent cannot see which channels a child follows or when the child last read them",
+      "members": { "parent": "adult", "kid": "child" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES ('ch1', ?, '2026-01-01T00:00:00Z')",
+          "params": ["{{kid}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES ('ch1', ?)",
+          "params": ["{{kid}}"]
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "SELECT member_id FROM app_group_channels__member_last_read",
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "parent",
+          "sql": "SELECT member_id FROM app_group_channels__channel_subscriptions",
+          "expect": { "status": 200, "rowCount": 0 }
+        },
+        {
+          "action": "db",
+          "as": "kid",
+          "sql": "SELECT channel_id, member_id FROM app_group_channels__channel_subscriptions",
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "channel_id": "ch1", "member_id": "scn-kid" }] }
+        }
+      ]
     }
   ]
 }
