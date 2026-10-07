@@ -534,7 +534,7 @@
   <aside class="sidebar">
     <div class="sidebar-header">
       <span class="sidebar-title">Channels</span>
-      <button class="btn-icon" id="settings-btn" title="Channel manager settings" style="display:none">⚙️</button>
+      <button class="btn-icon" id="settings-btn" title="Channel manager settings" aria-label="Channel manager settings" style="display:none"></button>
       <button class="btn-icon" id="new-channel-btn" data-testid="new-channel" title="New channel" style="display:none">＋</button>
     </div>
     <div class="sidebar-search">
@@ -557,7 +557,7 @@ import { memberColor, initial, esc, formatRelativeDate, formatClockTime,
          canManageChannels, canSeeChannel, canPostInChannel,
          slugify, resolveChannelMemberIds, renderBody,
          extractMentionedIds, dateLabel, isSameDay, shouldGroupMessages, searchableFields } from "./logic.js";
-import { hubAlert, createFilesHelper, searchMatch, hubToday } from "/hub-sdk.js";
+import { hubAlert, createFilesHelper, searchMatch, hubToday, glyph, chickadee } from "/hub-sdk.js";
 
 // ── Globals ───────────────────────────────────────────────────────────────────
 const CONTEXT      = window.__CONTEXT_URL  ?? "";
@@ -978,7 +978,7 @@ function renderMain() {
           </button>
           <button class="btn btn-ghost btn-sm" data-channel="${esc(ch.id)}" onclick="window.toggleFollow(this.dataset.channel)"
             title="${subscriptions.has(ch.id) ? "Following — you’re notified of new messages. Click to stop." : "Get notified of new messages in this channel"}">
-            ${subscriptions.has(ch.id) ? "🔔 Following" : "🔕 Follow"}
+            ${subscriptions.has(ch.id) ? `${glyph("bell")} Following` : `${glyph("bell-off")} Follow`}
           </button>
         ` : ""}
         ${canManage ? `
@@ -1005,8 +1005,8 @@ function composerHtml(ch) {
           onkeydown="window.composerKeydown(event)"
           oninput="window.composerInput(event)"></textarea>
         <div class="composer-actions">
-          ${hasFiles ? `<label class="btn btn-ghost btn-sm" title="Attach file" style="cursor:pointer">
-            📎
+          ${hasFiles ? `<label class="btn btn-ghost btn-sm" title="Attach file" aria-label="Attach file" style="cursor:pointer">
+            ${glyph("paperclip")}
             <input type="file" id="file-input" style="display:none" onchange="window.onFileSelected(event)" multiple />
           </label>` : ""}
           <span class="spacer"></span>
@@ -1071,7 +1071,7 @@ function messageHtml(msg, grouped = false) {
         if (f.mime_type.startsWith("image/")) {
           return `<img class="msg-file-img" src="${files.url(f.file_id)}" alt="${esc(f.file_name)}" loading="lazy" />`;
         }
-        return `<a class="msg-file-link" href="${files.url(f.file_id)}" target="_blank" rel="noopener">📄 ${esc(f.file_name)}</a>`;
+        return `<a class="msg-file-link" href="${files.url(f.file_id)}" target="_blank" rel="noopener">${glyph("document")} ${esc(f.file_name)}</a>`;
       }).join("") +
     `</div>`;
   }
@@ -1108,13 +1108,13 @@ async function renderSearchPane(main) {
     <div class="channel-header">
       <span style="font-weight:700">Search results for "${esc(searchQuery)}"</span>
       <div class="channel-header-actions">
-        <button class="btn btn-ghost btn-sm" onclick="window.clearSearch()">✕ Clear</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.clearSearch()">${glyph("close")} Clear</button>
       </div>
     </div>
     <div class="search-results">`;
 
   if (!results.length) {
-    html += `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No results</div><div class="empty-sub">Try different keywords</div></div>`;
+    html += `<div class="empty-state"><div class="empty-icon">${chickadee("searching", { size: 72 })}</div><div class="empty-title">No results</div><div class="empty-sub">Try different keywords</div></div>`;
   } else {
     // The matcher requires every token to hit some field, so highlight per
     // token — the query as one literal string usually isn't in the body.
@@ -1321,8 +1321,8 @@ function renderPendingFiles() {
   if (!el) return;
   el.innerHTML = pendingFiles.map(f => `
     <div class="pending-file-chip">
-      ${f.uploading ? "⏳" : "📎"} ${esc(f.name)}
-      ${!f.uploading ? `<button onclick="window.removePendingFile('${f.tempId}')">✕</button>` : ""}
+      ${f.uploading ? glyph("hourglass") : glyph("document")} ${esc(f.name)}
+      ${!f.uploading ? `<button onclick="window.removePendingFile('${f.tempId}')" aria-label="Remove file">${glyph("close")}</button>` : ""}
     </div>`).join("");
 }
 
@@ -1701,6 +1701,7 @@ window.closeModal = function() { modalEl?.remove(); modalEl = null; };
 
 // ── New channel button ────────────────────────────────────────────────────────
 document.getElementById("new-channel-btn").addEventListener("click", () => window.openNewChannel());
+document.getElementById("settings-btn").innerHTML = glyph("gear");
 document.getElementById("settings-btn").addEventListener("click", () => window.openSettings());
 
 // ── Deep link ─────────────────────────────────────────────────────────────────
