@@ -1,0 +1,1767 @@
+{
+  "groups": [
+    {
+      "key": "lead",
+      "name": "Leadership",
+      "members": [
+        "{{me}}",
+        "{{partner}}"
+      ]
+    }
+  ],
+  "seed": [
+    {
+      "sql": "INSERT INTO app_group_channels__settings (key, value) VALUES (?, ?)",
+      "params": [
+        "leadership_group_id",
+        "{{group:lead}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-150 days'), ?)",
+      "params": [
+        "perf-ch-general",
+        "General",
+        "general",
+        "Everything that does not fit elsewhere.",
+        "all",
+        "[]",
+        1,
+        "{{me}}",
+        "all"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-141 days'), ?)",
+      "params": [
+        "perf-ch-announce",
+        "Announcements",
+        "announcements",
+        "Notices for the whole household.",
+        "all",
+        "[]",
+        1,
+        "{{partner}}",
+        "all"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-132 days'), ?)",
+      "params": [
+        "perf-ch-events",
+        "Events",
+        "events",
+        "Planning for get-togethers and outings.",
+        "all",
+        "[]",
+        0,
+        "{{me}}",
+        "all"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-123 days'), ?)",
+      "params": [
+        "perf-ch-finance",
+        "Finance",
+        "finance",
+        "Budget, dues and receipts.",
+        "custom",
+        "[]",
+        0,
+        "{{partner}}",
+        "all"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-finance",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-finance",
+        "{{partner}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-finance",
+        "{{adult2}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-114 days'), ?)",
+      "params": [
+        "perf-ch-grownups",
+        "Grown-ups",
+        "grown-ups",
+        "Adults only.",
+        "role",
+        "[\"admin\", \"adult\"]",
+        0,
+        "{{me}}",
+        "all"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-105 days'), ?)",
+      "params": [
+        "perf-ch-maint",
+        "Maintenance",
+        "maintenance",
+        "Repairs and things that need fixing.",
+        "all",
+        "[]",
+        0,
+        "{{partner}}",
+        "all"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-96 days'), ?)",
+      "params": [
+        "perf-ch-carpool",
+        "Carpool",
+        "carpool",
+        "Who is driving whom, and when.",
+        "custom",
+        "[]",
+        0,
+        "{{me}}",
+        "all"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-carpool",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-carpool",
+        "{{partner}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-carpool",
+        "{{child}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-carpool",
+        "{{child2}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at, visibility, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-87 days'), ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-40 days'))",
+      "params": [
+        "perf-ch-old",
+        "Summer Picnic 2025",
+        "summer-picnic-2025",
+        "Wrapped up.",
+        "all",
+        "[]",
+        0,
+        "{{partner}}",
+        "all"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-866 hours'))",
+      "params": [
+        "perf-msg-001",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "Reminder that the meeting moved to Thursday at 7pm."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-832 hours','-7 minutes'))",
+      "params": [
+        "perf-msg-002",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "Sounds good, I will let everyone know."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-800 hours','-14 minutes'))",
+      "params": [
+        "perf-msg-003",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Does anyone have the key to the storage room?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-768 hours','-21 minutes'))",
+      "params": [
+        "perf-msg-004",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "I left it on the hook by the back door."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-736 hours','-28 minutes'))",
+      "params": [
+        "perf-msg-005",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "Thanks! Found it."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-706 hours','-35 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-706 hours','-32 minutes'))",
+      "params": [
+        "perf-msg-006",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Can we push the start time back half an hour?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-675 hours','-42 minutes'))",
+      "params": [
+        "perf-msg-007",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "Works for me."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-646 hours','-49 minutes'))",
+      "params": [
+        "perf-msg-008",
+        "perf-ch-general",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I can bring folding chairs if we need more seating."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-617 hours','-6 minutes'))",
+      "params": [
+        "perf-msg-009",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "The receipt for the supplies is in the shared folder."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-589 hours','-13 minutes'))",
+      "params": [
+        "perf-msg-010",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "Who is covering Saturday morning?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-561 hours','-20 minutes'))",
+      "params": [
+        "perf-msg-011",
+        "perf-ch-general",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I can take the first shift, until about eleven."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-535 hours','-27 minutes'))",
+      "params": [
+        "perf-msg-012",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "Heads up, the driveway will be blocked tomorrow from nine to noon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-508 hours','-34 minutes'))",
+      "params": [
+        "perf-msg-013",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "Got it, I will park on the street."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-483 hours','-41 minutes'))",
+      "params": [
+        "perf-msg-014",
+        "perf-ch-general",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Quick question: is this in person or over video?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-458 hours','-48 minutes'))",
+      "params": [
+        "perf-msg-015",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "In person, same room as last time."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-433 hours','-5 minutes'))",
+      "params": [
+        "perf-msg-016",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "I added the notes from last night, take a look when you get a chance."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-410 hours','-12 minutes'))",
+      "params": [
+        "perf-msg-017",
+        "perf-ch-general",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Looks great. One small fix on the second item, the date should be the 14th."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-387 hours','-19 minutes'))",
+      "params": [
+        "perf-msg-018",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "Fixed, thank you."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-364 hours','-26 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-364 hours','-23 minutes'))",
+      "params": [
+        "perf-msg-019",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "Is anyone else getting the newsletter twice?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-342 hours','-33 minutes'))",
+      "params": [
+        "perf-msg-020",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Yes, I think there are two lists. I will merge them this week."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-321 hours','-40 minutes'))",
+      "params": [
+        "perf-msg-021",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "The heating technician is confirmed for Tuesday afternoon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-301 hours','-47 minutes'))",
+      "params": [
+        "perf-msg-022",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "Perfect, I will be home."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-281 hours','-4 minutes'))",
+      "params": [
+        "perf-msg-023",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Does Friday still work for the potluck?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-262 hours','-11 minutes'))",
+      "params": [
+        "perf-msg-024",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "Friday works. I will bring a salad."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-243 hours','-18 minutes'))",
+      "params": [
+        "perf-msg-025",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "I will bring drinks and paper plates."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-225 hours','-25 minutes'))",
+      "params": [
+        "perf-msg-026",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Thanks everyone, that went really well."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-208 hours','-32 minutes'))",
+      "params": [
+        "perf-msg-027",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "Reminder that the meeting moved to Thursday at 7pm."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-191 hours','-39 minutes'))",
+      "params": [
+        "perf-msg-028",
+        "perf-ch-general",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Sounds good, I will let everyone know."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-175 hours','-46 minutes'))",
+      "params": [
+        "perf-msg-029",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Does anyone have the key to the storage room?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-159 hours','-3 minutes'))",
+      "params": [
+        "perf-msg-030",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "I left it on the hook by the back door."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-145 hours','-10 minutes'))",
+      "params": [
+        "perf-msg-031",
+        "perf-ch-general",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Thanks! Found it."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-131 hours','-17 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-131 hours','-14 minutes'))",
+      "params": [
+        "perf-msg-032",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "Can we push the start time back half an hour?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-117 hours','-24 minutes'))",
+      "params": [
+        "perf-msg-033",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "Works for me."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-104 hours','-31 minutes'))",
+      "params": [
+        "perf-msg-034",
+        "perf-ch-general",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I can bring folding chairs if we need more seating."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-92 hours','-38 minutes'))",
+      "params": [
+        "perf-msg-035",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "The receipt for the supplies is in the shared folder."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-80 hours','-45 minutes'))",
+      "params": [
+        "perf-msg-036",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "Who is covering Saturday morning?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-69 hours','-2 minutes'))",
+      "params": [
+        "perf-msg-037",
+        "perf-ch-general",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I can take the first shift, until about eleven."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-59 hours','-9 minutes'))",
+      "params": [
+        "perf-msg-038",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "Heads up, the driveway will be blocked tomorrow from nine to noon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-49 hours','-16 minutes'))",
+      "params": [
+        "perf-msg-039",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "Got it, I will park on the street."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-40 hours','-23 minutes'))",
+      "params": [
+        "perf-msg-040",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Quick question: is this in person or over video?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-32 hours','-30 minutes'))",
+      "params": [
+        "perf-msg-041",
+        "perf-ch-general",
+        "{{me}}",
+        "Perf Admin",
+        "In person, same room as last time."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-24 hours','-37 minutes'))",
+      "params": [
+        "perf-msg-042",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "I added the notes from last night, take a look when you get a chance."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-17 hours','-44 minutes'))",
+      "params": [
+        "perf-msg-043",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Looks great. One small fix on the second item, the date should be the 14th."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-11 hours','-1 minutes'))",
+      "params": [
+        "perf-msg-044",
+        "perf-ch-general",
+        "{{child2}}",
+        "Riley Kim",
+        "Fixed, thank you."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 hours','-8 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 hours','-5 minutes'))",
+      "params": [
+        "perf-msg-045",
+        "perf-ch-general",
+        "{{child}}",
+        "Taylor Kim",
+        "Is anyone else getting the newsletter twice?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes'))",
+      "params": [
+        "perf-msg-046",
+        "perf-ch-general",
+        "{{partner}}",
+        "Jordan Lee",
+        "Yes, I think there are two lists. I will merge them this week."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-815 hours','-11 minutes'))",
+      "params": [
+        "perf-msg-047",
+        "perf-ch-announce",
+        "{{partner}}",
+        "Jordan Lee",
+        "Can we push the start time back half an hour?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-734 hours','-18 minutes'))",
+      "params": [
+        "perf-msg-048",
+        "perf-ch-announce",
+        "{{child2}}",
+        "Riley Kim",
+        "Works for me."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-657 hours','-25 minutes'))",
+      "params": [
+        "perf-msg-049",
+        "perf-ch-announce",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I can bring folding chairs if we need more seating."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-584 hours','-32 minutes'))",
+      "params": [
+        "perf-msg-050",
+        "perf-ch-announce",
+        "{{me}}",
+        "Perf Admin",
+        "The receipt for the supplies is in the shared folder."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-515 hours','-39 minutes'))",
+      "params": [
+        "perf-msg-051",
+        "perf-ch-announce",
+        "{{child2}}",
+        "Riley Kim",
+        "Who is covering Saturday morning?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-451 hours','-46 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-451 hours','-43 minutes'))",
+      "params": [
+        "perf-msg-052",
+        "perf-ch-announce",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I can take the first shift, until about eleven."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-390 hours','-3 minutes'))",
+      "params": [
+        "perf-msg-053",
+        "perf-ch-announce",
+        "{{me}}",
+        "Perf Admin",
+        "Heads up, the driveway will be blocked tomorrow from nine to noon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-334 hours','-10 minutes'))",
+      "params": [
+        "perf-msg-054",
+        "perf-ch-announce",
+        "{{child}}",
+        "Taylor Kim",
+        "Got it, I will park on the street."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-282 hours','-17 minutes'))",
+      "params": [
+        "perf-msg-055",
+        "perf-ch-announce",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Quick question: is this in person or over video?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-234 hours','-24 minutes'))",
+      "params": [
+        "perf-msg-056",
+        "perf-ch-announce",
+        "{{me}}",
+        "Perf Admin",
+        "In person, same room as last time."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-190 hours','-31 minutes'))",
+      "params": [
+        "perf-msg-057",
+        "perf-ch-announce",
+        "{{child}}",
+        "Taylor Kim",
+        "I added the notes from last night, take a look when you get a chance."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-151 hours','-38 minutes'))",
+      "params": [
+        "perf-msg-058",
+        "perf-ch-announce",
+        "{{partner}}",
+        "Jordan Lee",
+        "Looks great. One small fix on the second item, the date should be the 14th."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-115 hours','-45 minutes'))",
+      "params": [
+        "perf-msg-059",
+        "perf-ch-announce",
+        "{{me}}",
+        "Perf Admin",
+        "Fixed, thank you."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-84 hours','-2 minutes'))",
+      "params": [
+        "perf-msg-060",
+        "perf-ch-announce",
+        "{{child}}",
+        "Taylor Kim",
+        "Is anyone else getting the newsletter twice?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-57 hours','-9 minutes'))",
+      "params": [
+        "perf-msg-061",
+        "perf-ch-announce",
+        "{{partner}}",
+        "Jordan Lee",
+        "Yes, I think there are two lists. I will merge them this week."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-34 hours','-16 minutes'))",
+      "params": [
+        "perf-msg-062",
+        "perf-ch-announce",
+        "{{child2}}",
+        "Riley Kim",
+        "The heating technician is confirmed for Tuesday afternoon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 hours','-23 minutes'))",
+      "params": [
+        "perf-msg-063",
+        "perf-ch-announce",
+        "{{child}}",
+        "Taylor Kim",
+        "Perfect, I will be home."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 hours','-30 minutes'))",
+      "params": [
+        "perf-msg-064",
+        "perf-ch-announce",
+        "{{partner}}",
+        "Jordan Lee",
+        "Does Friday still work for the potluck?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-831 hours','-22 minutes'))",
+      "params": [
+        "perf-msg-065",
+        "perf-ch-events",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I can take the first shift, until about eleven."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-764 hours','-29 minutes'))",
+      "params": [
+        "perf-msg-066",
+        "perf-ch-events",
+        "{{me}}",
+        "Perf Admin",
+        "Heads up, the driveway will be blocked tomorrow from nine to noon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-699 hours','-36 minutes'))",
+      "params": [
+        "perf-msg-067",
+        "perf-ch-events",
+        "{{child}}",
+        "Taylor Kim",
+        "Got it, I will park on the street."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-637 hours','-43 minutes'))",
+      "params": [
+        "perf-msg-068",
+        "perf-ch-events",
+        "{{partner}}",
+        "Jordan Lee",
+        "Quick question: is this in person or over video?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-578 hours'))",
+      "params": [
+        "perf-msg-069",
+        "perf-ch-events",
+        "{{me}}",
+        "Perf Admin",
+        "In person, same room as last time."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-522 hours','-7 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-522 hours','-4 minutes'))",
+      "params": [
+        "perf-msg-070",
+        "perf-ch-events",
+        "{{child}}",
+        "Taylor Kim",
+        "I added the notes from last night, take a look when you get a chance."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-469 hours','-14 minutes'))",
+      "params": [
+        "perf-msg-071",
+        "perf-ch-events",
+        "{{partner}}",
+        "Jordan Lee",
+        "Looks great. One small fix on the second item, the date should be the 14th."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-418 hours','-21 minutes'))",
+      "params": [
+        "perf-msg-072",
+        "perf-ch-events",
+        "{{child2}}",
+        "Riley Kim",
+        "Fixed, thank you."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-370 hours','-28 minutes'))",
+      "params": [
+        "perf-msg-073",
+        "perf-ch-events",
+        "{{child}}",
+        "Taylor Kim",
+        "Is anyone else getting the newsletter twice?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-325 hours','-35 minutes'))",
+      "params": [
+        "perf-msg-074",
+        "perf-ch-events",
+        "{{partner}}",
+        "Jordan Lee",
+        "Yes, I think there are two lists. I will merge them this week."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-283 hours','-42 minutes'))",
+      "params": [
+        "perf-msg-075",
+        "perf-ch-events",
+        "{{child2}}",
+        "Riley Kim",
+        "The heating technician is confirmed for Tuesday afternoon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-243 hours','-49 minutes'))",
+      "params": [
+        "perf-msg-076",
+        "perf-ch-events",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Perfect, I will be home."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-207 hours','-6 minutes'))",
+      "params": [
+        "perf-msg-077",
+        "perf-ch-events",
+        "{{partner}}",
+        "Jordan Lee",
+        "Does Friday still work for the potluck?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-173 hours','-13 minutes'))",
+      "params": [
+        "perf-msg-078",
+        "perf-ch-events",
+        "{{child2}}",
+        "Riley Kim",
+        "Friday works. I will bring a salad."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-141 hours','-20 minutes'))",
+      "params": [
+        "perf-msg-079",
+        "perf-ch-events",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I will bring drinks and paper plates."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-113 hours','-27 minutes'))",
+      "params": [
+        "perf-msg-080",
+        "perf-ch-events",
+        "{{me}}",
+        "Perf Admin",
+        "Thanks everyone, that went really well."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-88 hours','-34 minutes'))",
+      "params": [
+        "perf-msg-081",
+        "perf-ch-events",
+        "{{child2}}",
+        "Riley Kim",
+        "Reminder that the meeting moved to Thursday at 7pm."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-65 hours','-41 minutes'))",
+      "params": [
+        "perf-msg-082",
+        "perf-ch-events",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Sounds good, I will let everyone know."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-45 hours','-48 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-45 hours','-45 minutes'))",
+      "params": [
+        "perf-msg-083",
+        "perf-ch-events",
+        "{{me}}",
+        "Perf Admin",
+        "Does anyone have the key to the storage room?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-28 hours','-5 minutes'))",
+      "params": [
+        "perf-msg-084",
+        "perf-ch-events",
+        "{{child}}",
+        "Taylor Kim",
+        "I left it on the hook by the back door."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-13 hours','-12 minutes'))",
+      "params": [
+        "perf-msg-085",
+        "perf-ch-events",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Thanks! Found it."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 hours','-19 minutes'))",
+      "params": [
+        "perf-msg-086",
+        "perf-ch-events",
+        "{{me}}",
+        "Perf Admin",
+        "Can we push the start time back half an hour?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-825 hours','-33 minutes'))",
+      "params": [
+        "perf-msg-087",
+        "perf-ch-finance",
+        "{{me}}",
+        "Perf Admin",
+        "I added the notes from last night, take a look when you get a chance."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-752 hours','-40 minutes'))",
+      "params": [
+        "perf-msg-088",
+        "perf-ch-finance",
+        "{{me}}",
+        "Perf Admin",
+        "Looks great. One small fix on the second item, the date should be the 14th."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-681 hours','-47 minutes'))",
+      "params": [
+        "perf-msg-089",
+        "perf-ch-finance",
+        "{{me}}",
+        "Perf Admin",
+        "Fixed, thank you."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-615 hours','-4 minutes'))",
+      "params": [
+        "perf-msg-090",
+        "perf-ch-finance",
+        "{{me}}",
+        "Perf Admin",
+        "Is anyone else getting the newsletter twice?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-551 hours','-11 minutes'))",
+      "params": [
+        "perf-msg-091",
+        "perf-ch-finance",
+        "{{partner}}",
+        "Jordan Lee",
+        "Yes, I think there are two lists. I will merge them this week."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-491 hours','-18 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-491 hours','-15 minutes'))",
+      "params": [
+        "perf-msg-092",
+        "perf-ch-finance",
+        "{{partner}}",
+        "Jordan Lee",
+        "The heating technician is confirmed for Tuesday afternoon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-434 hours','-25 minutes'))",
+      "params": [
+        "perf-msg-093",
+        "perf-ch-finance",
+        "{{partner}}",
+        "Jordan Lee",
+        "Perfect, I will be home."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-381 hours','-32 minutes'))",
+      "params": [
+        "perf-msg-094",
+        "perf-ch-finance",
+        "{{partner}}",
+        "Jordan Lee",
+        "Does Friday still work for the potluck?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-330 hours','-39 minutes'))",
+      "params": [
+        "perf-msg-095",
+        "perf-ch-finance",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Friday works. I will bring a salad."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-284 hours','-46 minutes'))",
+      "params": [
+        "perf-msg-096",
+        "perf-ch-finance",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I will bring drinks and paper plates."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-240 hours','-3 minutes'))",
+      "params": [
+        "perf-msg-097",
+        "perf-ch-finance",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Thanks everyone, that went really well."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-201 hours','-10 minutes'))",
+      "params": [
+        "perf-msg-098",
+        "perf-ch-finance",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Reminder that the meeting moved to Thursday at 7pm."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-164 hours','-17 minutes'))",
+      "params": [
+        "perf-msg-099",
+        "perf-ch-finance",
+        "{{me}}",
+        "Perf Admin",
+        "Sounds good, I will let everyone know."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-131 hours','-24 minutes'))",
+      "params": [
+        "perf-msg-100",
+        "perf-ch-finance",
+        "{{me}}",
+        "Perf Admin",
+        "Does anyone have the key to the storage room?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-101 hours','-31 minutes'))",
+      "params": [
+        "perf-msg-101",
+        "perf-ch-finance",
+        "{{me}}",
+        "Perf Admin",
+        "I left it on the hook by the back door."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-75 hours','-38 minutes'))",
+      "params": [
+        "perf-msg-102",
+        "perf-ch-finance",
+        "{{me}}",
+        "Perf Admin",
+        "Thanks! Found it."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-51 hours','-45 minutes'))",
+      "params": [
+        "perf-msg-103",
+        "perf-ch-finance",
+        "{{partner}}",
+        "Jordan Lee",
+        "Can we push the start time back half an hour?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-32 hours','-2 minutes'))",
+      "params": [
+        "perf-msg-104",
+        "perf-ch-finance",
+        "{{partner}}",
+        "Jordan Lee",
+        "Works for me."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 hours','-9 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 hours','-6 minutes'))",
+      "params": [
+        "perf-msg-105",
+        "perf-ch-finance",
+        "{{partner}}",
+        "Jordan Lee",
+        "I can bring folding chairs if we need more seating."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-3 hours','-16 minutes'))",
+      "params": [
+        "perf-msg-106",
+        "perf-ch-finance",
+        "{{partner}}",
+        "Jordan Lee",
+        "The receipt for the supplies is in the shared folder."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-808 hours','-44 minutes'))",
+      "params": [
+        "perf-msg-107",
+        "perf-ch-grownups",
+        "{{partner}}",
+        "Jordan Lee",
+        "The heating technician is confirmed for Tuesday afternoon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-717 hours','-1 minutes'))",
+      "params": [
+        "perf-msg-108",
+        "perf-ch-grownups",
+        "{{partner}}",
+        "Jordan Lee",
+        "Perfect, I will be home."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-632 hours','-8 minutes'))",
+      "params": [
+        "perf-msg-109",
+        "perf-ch-grownups",
+        "{{partner}}",
+        "Jordan Lee",
+        "Does Friday still work for the potluck?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-552 hours','-15 minutes'))",
+      "params": [
+        "perf-msg-110",
+        "perf-ch-grownups",
+        "{{partner}}",
+        "Jordan Lee",
+        "Friday works. I will bring a salad."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-477 hours','-22 minutes'))",
+      "params": [
+        "perf-msg-111",
+        "perf-ch-grownups",
+        "{{adult2}}",
+        "Sam Rivera",
+        "I will bring drinks and paper plates."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-408 hours','-29 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-408 hours','-26 minutes'))",
+      "params": [
+        "perf-msg-112",
+        "perf-ch-grownups",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Thanks everyone, that went really well."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-344 hours','-36 minutes'))",
+      "params": [
+        "perf-msg-113",
+        "perf-ch-grownups",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Reminder that the meeting moved to Thursday at 7pm."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-285 hours','-43 minutes'))",
+      "params": [
+        "perf-msg-114",
+        "perf-ch-grownups",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Sounds good, I will let everyone know."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-231 hours'))",
+      "params": [
+        "perf-msg-115",
+        "perf-ch-grownups",
+        "{{me}}",
+        "Perf Admin",
+        "Does anyone have the key to the storage room?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-183 hours','-7 minutes'))",
+      "params": [
+        "perf-msg-116",
+        "perf-ch-grownups",
+        "{{me}}",
+        "Perf Admin",
+        "I left it on the hook by the back door."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-140 hours','-14 minutes'))",
+      "params": [
+        "perf-msg-117",
+        "perf-ch-grownups",
+        "{{me}}",
+        "Perf Admin",
+        "Thanks! Found it."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-102 hours','-21 minutes'))",
+      "params": [
+        "perf-msg-118",
+        "perf-ch-grownups",
+        "{{me}}",
+        "Perf Admin",
+        "Can we push the start time back half an hour?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-69 hours','-28 minutes'))",
+      "params": [
+        "perf-msg-119",
+        "perf-ch-grownups",
+        "{{partner}}",
+        "Jordan Lee",
+        "Works for me."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-42 hours','-35 minutes'))",
+      "params": [
+        "perf-msg-120",
+        "perf-ch-grownups",
+        "{{partner}}",
+        "Jordan Lee",
+        "I can bring folding chairs if we need more seating."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-20 hours','-42 minutes'))",
+      "params": [
+        "perf-msg-121",
+        "perf-ch-grownups",
+        "{{partner}}",
+        "Jordan Lee",
+        "The receipt for the supplies is in the shared folder."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-4 hours','-49 minutes'))",
+      "params": [
+        "perf-msg-122",
+        "perf-ch-grownups",
+        "{{partner}}",
+        "Jordan Lee",
+        "Who is covering Saturday morning?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-795 hours','-5 minutes'))",
+      "params": [
+        "perf-msg-123",
+        "perf-ch-maint",
+        "{{me}}",
+        "Perf Admin",
+        "Thanks everyone, that went really well."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-693 hours','-12 minutes'))",
+      "params": [
+        "perf-msg-124",
+        "perf-ch-maint",
+        "{{child}}",
+        "Taylor Kim",
+        "Reminder that the meeting moved to Thursday at 7pm."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-598 hours','-19 minutes'))",
+      "params": [
+        "perf-msg-125",
+        "perf-ch-maint",
+        "{{partner}}",
+        "Jordan Lee",
+        "Sounds good, I will let everyone know."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-510 hours','-26 minutes'))",
+      "params": [
+        "perf-msg-126",
+        "perf-ch-maint",
+        "{{child2}}",
+        "Riley Kim",
+        "Does anyone have the key to the storage room?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-428 hours','-33 minutes'))",
+      "params": [
+        "perf-msg-127",
+        "perf-ch-maint",
+        "{{child}}",
+        "Taylor Kim",
+        "I left it on the hook by the back door."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-353 hours','-40 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-353 hours','-37 minutes'))",
+      "params": [
+        "perf-msg-128",
+        "perf-ch-maint",
+        "{{partner}}",
+        "Jordan Lee",
+        "Thanks! Found it."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-286 hours','-47 minutes'))",
+      "params": [
+        "perf-msg-129",
+        "perf-ch-maint",
+        "{{child2}}",
+        "Riley Kim",
+        "Can we push the start time back half an hour?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-225 hours','-4 minutes'))",
+      "params": [
+        "perf-msg-130",
+        "perf-ch-maint",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Works for me."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-171 hours','-11 minutes'))",
+      "params": [
+        "perf-msg-131",
+        "perf-ch-maint",
+        "{{partner}}",
+        "Jordan Lee",
+        "I can bring folding chairs if we need more seating."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-124 hours','-18 minutes'))",
+      "params": [
+        "perf-msg-132",
+        "perf-ch-maint",
+        "{{child2}}",
+        "Riley Kim",
+        "The receipt for the supplies is in the shared folder."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-84 hours','-25 minutes'))",
+      "params": [
+        "perf-msg-133",
+        "perf-ch-maint",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Who is covering Saturday morning?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-50 hours','-32 minutes'))",
+      "params": [
+        "perf-msg-134",
+        "perf-ch-maint",
+        "{{me}}",
+        "Perf Admin",
+        "I can take the first shift, until about eleven."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-24 hours','-39 minutes'))",
+      "params": [
+        "perf-msg-135",
+        "perf-ch-maint",
+        "{{child2}}",
+        "Riley Kim",
+        "Heads up, the driveway will be blocked tomorrow from nine to noon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 hours','-46 minutes'))",
+      "params": [
+        "perf-msg-136",
+        "perf-ch-maint",
+        "{{adult2}}",
+        "Sam Rivera",
+        "Got it, I will park on the street."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-779 hours','-16 minutes'))",
+      "params": [
+        "perf-msg-137",
+        "perf-ch-carpool",
+        "{{child}}",
+        "Taylor Kim",
+        "Thanks! Found it."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-662 hours','-23 minutes'))",
+      "params": [
+        "perf-msg-138",
+        "perf-ch-carpool",
+        "{{partner}}",
+        "Jordan Lee",
+        "Can we push the start time back half an hour?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-554 hours','-30 minutes'))",
+      "params": [
+        "perf-msg-139",
+        "perf-ch-carpool",
+        "{{me}}",
+        "Perf Admin",
+        "Works for me."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-456 hours','-37 minutes'))",
+      "params": [
+        "perf-msg-140",
+        "perf-ch-carpool",
+        "{{child2}}",
+        "Riley Kim",
+        "I can bring folding chairs if we need more seating."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-366 hours','-44 minutes'))",
+      "params": [
+        "perf-msg-141",
+        "perf-ch-carpool",
+        "{{child2}}",
+        "Riley Kim",
+        "The receipt for the supplies is in the shared folder."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at, edited_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-287 hours','-1 minutes'), strftime('%Y-%m-%dT%H:%M:%fZ','now','-287 hours'))",
+      "params": [
+        "perf-msg-142",
+        "perf-ch-carpool",
+        "{{child}}",
+        "Taylor Kim",
+        "Who is covering Saturday morning?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-216 hours','-8 minutes'))",
+      "params": [
+        "perf-msg-143",
+        "perf-ch-carpool",
+        "{{partner}}",
+        "Jordan Lee",
+        "I can take the first shift, until about eleven."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-156 hours','-15 minutes'))",
+      "params": [
+        "perf-msg-144",
+        "perf-ch-carpool",
+        "{{me}}",
+        "Perf Admin",
+        "Heads up, the driveway will be blocked tomorrow from nine to noon."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-104 hours','-22 minutes'))",
+      "params": [
+        "perf-msg-145",
+        "perf-ch-carpool",
+        "{{me}}",
+        "Perf Admin",
+        "Got it, I will park on the street."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-62 hours','-29 minutes'))",
+      "params": [
+        "perf-msg-146",
+        "perf-ch-carpool",
+        "{{child2}}",
+        "Riley Kim",
+        "Quick question: is this in person or over video?"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-29 hours','-36 minutes'))",
+      "params": [
+        "perf-msg-147",
+        "perf-ch-carpool",
+        "{{child}}",
+        "Taylor Kim",
+        "In person, same room as last time."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-6 hours','-43 minutes'))",
+      "params": [
+        "perf-msg-148",
+        "perf-ch-carpool",
+        "{{partner}}",
+        "Jordan Lee",
+        "I added the notes from last night, take a look when you get a chance."
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-general",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-announce",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-finance",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-carpool",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-announce",
+        "{{partner}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-events",
+        "{{partner}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?)",
+      "params": [
+        "perf-ch-carpool",
+        "{{child}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-30 hours'))",
+      "params": [
+        "perf-ch-general",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 hours'))",
+      "params": [
+        "perf-ch-announce",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-70 hours'))",
+      "params": [
+        "perf-ch-events",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 hours'))",
+      "params": [
+        "perf-ch-finance",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-200 hours'))",
+      "params": [
+        "perf-ch-grownups",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-400 hours'))",
+      "params": [
+        "perf-ch-maint",
+        "{{me}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 hours'))",
+      "params": [
+        "perf-ch-general",
+        "{{partner}}"
+      ]
+    },
+    {
+      "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now','-5 hours'))",
+      "params": [
+        "perf-ch-events",
+        "{{partner}}"
+      ]
+    }
+  ]
+}
