@@ -6,6 +6,9 @@ import {
   renderBody, extractMentionedIds,
   dateLabel, isSameDay, shouldGroupMessages,
   formatRelativeDate, formatClockTime, searchableFields,
+  authorName, mentionCandidateIds,
+  createLatestLoader,
+  MAX_BATCH, MAX_ATTACHMENTS, acceptFiles, messageBatch,
 } from "../src/logic.js";
 import { testPrivilegedGateContract } from "./helpers/privileged-gate.mjs";
 
@@ -246,5 +249,197 @@ describe("searchableFields", () => {
     const fields = searchableFields({ body: "who is on parking duty?", author_name: "Sam" });
     expect(fields).toContain("who is on parking duty?");
     expect(fields).toContain("Sam");
+  });
+});
+
+describe("extractMentionedIds whole-name matching", () => {
+  const people = [{ id: "al", name: "Al" }, { id: "alex", name: "Alex" }, { id: "aj", name: "Alex Johnson" }];
+
+  it("does not mention a member whose name is the start of the one written", () => {
+    expect(extractMentionedIds("thanks @Alex!", people)).toEqual(["alex"]);
+  });
+
+  it("takes the longest name and not the shorter one inside it", () => {
+    expect(extractMentionedIds("@Alex Johnson can you check", people)).toEqual(["aj"]);
+  });
+
+  it("still finds two separate mentions", () => {
+    expect(extractMentionedIds("@Al and @Alex", people).sort()).toEqual(["al", "alex"]);
+  });
+});
+
+describe("mentionCandidateIds", () => {
+  const all = [{ id: "m1" }, { id: "m2" }, { id: "m3" }];
+  const custom = { membership_type: "custom", membership_roles: "[]" };
+
+  it("offers a manager the hand-picked channel's roster", () => {
+    expect(mentionCandidateIds(custom, all, ["m1", "m2"], [], true)).toEqual(["m1", "m2"]);
+  });
+
+  it("offers everyone to a member who can read only their own membership row", () => {
+    expect(mentionCandidateIds(custom, all, ["m3"], [], false)).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("resolves every other kind of channel as before", () => {
+    const group = { membership_type: "group", membership_roles: '["g1"]' };
+    expect(mentionCandidateIds(group, all, [], [{ id: "g1", memberIds: ["m2"] }], false)).toEqual(["m2"]);
+  });
+});
+
+describe("authorName", () => {
+  const members = [{ id: "m1", name: "Alex" }];
+
+  it("uses the roster name for the row's author id, whatever name the row carries", () => {
+    expect(authorName({ author_id: "m1", author_name: "Someone Else" }, members)).toBe("Alex");
+  });
+
+  it("falls back to the stored name for someone no longer on the roster", () => {
+    expect(authorName({ author_id: "gone", author_name: "Jordan" }, members)).toBe("Jordan");
+  });
+});
+
+describe("createLatestLoader", () => {
+  /** A load whose answers the test releases by hand, in any order. */
+  function harness() {
+    const pending = {};
+    const committed = [];
+    const run = createLatestLoader({
+      load: (key) => new Promise((resolve, reject) => { pending[key] = { resolve, reject }; }),
+      commit: (key, result) => committed.push([key, result]),
+    });
+    return { run, pending, committed };
+  }
+
+  it("commits the answer of a load that succeeds", async () => {
+    const { run, pending, committed } = harness();
+    const done = run("a");
+    pending.a.resolve("rows-a");
+    expect(await done).toBe(true);
+    expect(committed).toEqual([["a", "rows-a"]]);
+  });
+
+  it("commits nothing when the load fails, and throws the failure", async () => {
+    const { run, pending, committed } = harness();
+    const done = run("b");
+    pending.b.reject(new Error("offline"));
+    await expect(done).rejects.toThrow("offline");
+    expect(committed).toEqual([]);
+  });
+
+  it("drops an answer that arrives after a newer call, whatever order they land in", async () => {
+    const { run, pending, committed } = harness();
+    const first = run("a");
+    const second = run("b");
+    pending.b.resolve("rows-b");
+    expect(await second).toBe(true);
+    pending.a.resolve("rows-a");
+    expect(await first).toBe(false);
+    expect(committed).toEqual([["b", "rows-b"]]);
+  });
+
+  it("drops a superseded failure without throwing", async () => {
+    const { run, pending, committed } = harness();
+    const first = run("a");
+    const second = run("b");
+    pending.a.reject(new Error("offline"));
+    expect(await first).toBe(false);
+    pending.b.resolve("rows-b");
+    expect(await second).toBe(true);
+    expect(committed).toEqual([["b", "rows-b"]]);
+  });
+
+  it("can load the same key again after it failed", async () => {
+    const { run, pending, committed } = harness();
+    const failed = run("b");
+    pending.b.reject(new Error("offline"));
+    await expect(failed).rejects.toThrow();
+    const retry = run("b");
+    pending.b.resolve("rows-b");
+    expect(await retry).toBe(true);
+    expect(committed).toEqual([["b", "rows-b"]]);
+  });
+
+  it("cancel drops a load in flight, so going back to what is shown is the choice that wins", async () => {
+    const { run, pending, committed } = harness();
+    const done = run("b");
+    run.cancel();
+    pending.b.resolve("rows-b");
+    expect(await done).toBe(false);
+    expect(committed).toEqual([]);
+  });
+
+  it("cancel drops a failure in flight too, and a later load still commits", async () => {
+    const { run, pending, committed } = harness();
+    const dropped = run("b");
+    run.cancel();
+    pending.b.reject(new Error("offline"));
+    expect(await dropped).toBe(false);
+    const next = run("c");
+    pending.c.resolve("rows-c");
+    expect(await next).toBe(true);
+    expect(committed).toEqual([["c", "rows-c"]]);
+  });
+
+  it("passes options through and reports the latest call's number", async () => {
+    const seen = [];
+    const run = createLatestLoader({
+      load: async (key, options) => { seen.push(["load", key, options]); return 1; },
+      commit: (key, result, options) => seen.push(["commit", key, options]),
+    });
+    expect(run.generation()).toBe(0);
+    await run("a", { fresh: true });
+    expect(run.generation()).toBe(1);
+    expect(seen).toEqual([["load", "a", { fresh: true }], ["commit", "a", { fresh: true }]]);
+  });
+});
+
+describe("acceptFiles", () => {
+  const picked = (n) => Array.from({ length: n }, (_, i) => `file-${i}`);
+
+  it("takes everything while the message has room", () => {
+    expect(acceptFiles(picked(3), 0)).toEqual({ accepted: picked(3), refused: [] });
+  });
+
+  it("takes only what still fits beside the files already waiting", () => {
+    const { accepted, refused } = acceptFiles(picked(5), MAX_ATTACHMENTS - 2);
+    expect(accepted).toEqual(["file-0", "file-1"]);
+    expect(refused).toEqual(["file-2", "file-3", "file-4"]);
+  });
+
+  it("takes nothing once the message is full", () => {
+    expect(acceptFiles(picked(2), MAX_ATTACHMENTS).accepted).toEqual([]);
+    expect(acceptFiles(picked(2), MAX_ATTACHMENTS + 3).accepted).toEqual([]);
+  });
+});
+
+describe("messageBatch", () => {
+  const message = { id: "msg-1", channelId: "ch-a", authorId: "m1", authorName: "Alex", body: "hi", createdAt: "2026-01-01T00:00:00Z" };
+  const upload = (n) => Array.from({ length: n }, (_, i) => ({ id: `f${i}`, thumbId: i % 2 ? `t${i}` : null, name: `n${i}`, mime_type: "image/png", size: 10 }));
+  const ids = () => { let n = 0; return () => `row-${n++}`; };
+
+  it("is the message alone when nothing is attached", () => {
+    const batch = messageBatch(message, [], ids());
+    expect(batch).toHaveLength(1);
+    expect(batch[0].sql).toContain("INSERT INTO app_group_channels__messages");
+    expect(batch[0].params).toEqual(["msg-1", "ch-a", "m1", "Alex", "hi", "2026-01-01T00:00:00Z"]);
+  });
+
+  it("puts the message first and ties every attachment row to it and to its channel", () => {
+    const batch = messageBatch(message, upload(3), ids());
+    expect(batch).toHaveLength(4);
+    for (const [i, statement] of batch.slice(1).entries()) {
+      expect(statement.sql).toContain("INSERT INTO app_group_channels__message_files");
+      const [rowId, messageId, channelId, authorId, fileId, thumbId] = statement.params;
+      expect([rowId, messageId, channelId, authorId, fileId]).toEqual([`row-${i}`, "msg-1", "ch-a", "m1", `f${i}`]);
+      expect(thumbId).toBe(i % 2 ? `t${i}` : null);
+    }
+  });
+
+  it("fits the largest allowed send in exactly one hub batch", () => {
+    expect(messageBatch(message, upload(MAX_ATTACHMENTS), ids())).toHaveLength(MAX_BATCH);
+  });
+
+  it("refuses a send that would need a second batch", () => {
+    expect(() => messageBatch(message, upload(MAX_ATTACHMENTS + 1), ids())).toThrow(/up to 24 files/);
   });
 });

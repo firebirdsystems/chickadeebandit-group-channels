@@ -77,7 +77,7 @@
   "glance": {
     "source": {
       "kind": "sql",
-      "query": "SELECT COUNT(*) AS n FROM app_group_channels__messages m LEFT JOIN app_group_channels__member_last_read r ON r.channel_id = m.channel_id WHERE (r.last_read_at IS NULL OR m.created_at > r.last_read_at) LIMIT 1"
+      "query": "SELECT COUNT(*) AS n FROM app_group_channels__messages m LEFT JOIN app_group_channels__member_last_read r ON r.channel_id = m.channel_id WHERE m.created_at >= date(:today, '-120 days') AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at) LIMIT 1"
     },
     "display": {
       "template": "badge",
@@ -143,6 +143,12 @@
       "self_column": "author_id",
       "all_value": "all",
       "role_value": "role",
+      "frozen_when": {
+        "parent_table": "channels",
+        "fk_column": "channel_id",
+        "status_column": "archived_at",
+        "locked_when_not_null": true
+      },
       "retain_days": {
         "default": 365,
         "timestamp_column": "created_at",
@@ -167,7 +173,13 @@
       "membership_member_column": "member_id",
       "self_column": "author_id",
       "all_value": "all",
-      "role_value": "role"
+      "role_value": "role",
+      "frozen_when": {
+        "parent_table": "channels",
+        "fk_column": "channel_id",
+        "status_column": "archived_at",
+        "locked_when_not_null": true
+      }
     },
     "member_last_read": {
       "kind": "owner_only",
@@ -182,7 +194,8 @@
   },
   "delete_file_columns": {
     "message_files": [
-      "file_id"
+      "file_id",
+      "thumb_file_id"
     ]
   },
   "subscription_notify": {

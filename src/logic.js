@@ -109,16 +109,47 @@ export function renderBody(body, members) {
 
 /**
  * Extracts member ids @mentioned in a raw body string.
- * Matches against actual member names so multi-word names work.
+ * Matches against actual member names so multi-word names work. A name counts
+ * only as a whole mention, the same test renderBody highlights by: "@Alex"
+ * does not also mention a member called "Al", and the longest name is taken
+ * first so "@Alex Johnson" is not read as "@Alex" as well.
  */
 export function extractMentionedIds(body, members) {
   const ids = new Set();
-  const lower = body.toLowerCase();
-  const sorted = [...members].sort((a, b) => b.name.length - a.name.length);
+  let rest = body;
+  const sorted = [...members].filter(m => m.name).sort((a, b) => b.name.length - a.name.length);
   for (const m of sorted) {
-    if (lower.includes("@" + m.name.toLowerCase())) ids.add(m.id);
+    const name = m.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`@${name}(?=[^a-zA-Z]|$)`, "gi");
+    const without = rest.replace(re, " ");
+    if (without !== rest) ids.add(m.id);
+    rest = without;
   }
   return [...ids];
+}
+
+/**
+ * The member ids offered by @mention autocomplete in a channel.
+ *
+ * A hand-picked channel's roster is readable in full only by channel managers:
+ * everyone else reads just their own membership row, so resolving the roster
+ * for them gave a list of one, themselves. They are offered the whole roster
+ * instead. The hub decides who is actually notified, and drops anyone who
+ * cannot see the channel.
+ */
+export function mentionCandidateIds(channel, allMembers, customMemberIds = [], groups = [], seesWholeRoster = false) {
+  if (channel.membership_type === "custom" && !seesWholeRoster) return allMembers.map(m => m.id);
+  return resolveChannelMemberIds(channel, allMembers, customMemberIds, groups);
+}
+
+/**
+ * The name to show for a message's author. `author_id` is set by the hub and
+ * cannot be forged; `author_name` is whatever the sender wrote, so it is used
+ * only for someone no longer on the roster.
+ */
+export function authorName(row, members = []) {
+  const member = members.find(m => m.id === row.author_id);
+  return member?.name ?? row.author_name ?? "Former member";
 }
 
 // ── Date separators ───────────────────────────────────────────────────────────
@@ -171,4 +202,91 @@ export function shouldGroupMessages(prev, curr, windowMs = 5 * 60_000) {
  */
 export function searchableFields(message) {
   return [message.body, message.author_name];
+}
+
+/**
+ * Wraps a load so that only the latest call's answer is ever kept.
+ *
+ * `load(key, options)` fetches; `commit(key, result, options)` puts the answer
+ * into the page. Each call takes the next number, and a call's answer is
+ * committed only if no newer call has been made since. An answer that arrives
+ * late is dropped before it can change anything, and nothing is committed for a
+ * load that failed: the page stays exactly as it was.
+ *
+ * Resolves true when the answer was committed, false when a newer call
+ * superseded it (a superseded failure is dropped too). A failure of the latest
+ * call is thrown to the caller.
+ *
+ * `generation()` is the number of the latest call, for work that must notice a
+ * newer load without starting one. `cancel()` supersedes whatever is in flight
+ * without loading anything: for when the member's latest choice is what is
+ * already on the page, so an earlier, slower choice must not land over it.
+ */
+export function createLatestLoader({ load, commit }) {
+  let seq = 0;
+  async function run(key, options) {
+    const mine = ++seq;
+    let result;
+    try {
+      result = await load(key, options);
+    } catch (e) {
+      if (mine === seq) throw e;
+      return false;
+    }
+    if (mine !== seq) return false;
+    commit(key, result, options);
+    return true;
+  }
+  run.generation = () => seq;
+  run.cancel = () => { seq++; };
+  return run;
+}
+
+// ── Sending ───────────────────────────────────────────────────────────────────
+
+/** Statements the hub accepts in one atomic /api/db batch. */
+export const MAX_BATCH = 25;
+
+/**
+ * Files one message can carry. A message and its attachment rows are sent as
+ * ONE batch, so they land together or not at all; one statement of the batch
+ * is the message itself. Past this the send would need a second batch, and a
+ * failure there left the message saved while the page offered it for retry.
+ */
+export const MAX_ATTACHMENTS = MAX_BATCH - 1;
+
+/**
+ * Splits newly picked files into those a message still has room for and those
+ * it does not, given how many are already waiting to be sent with it.
+ */
+export function acceptFiles(selected, pendingCount) {
+  const room = Math.max(0, MAX_ATTACHMENTS - pendingCount);
+  return { accepted: selected.slice(0, room), refused: selected.slice(room) };
+}
+
+/**
+ * The one batch that sends a message: its row first, then one row per
+ * attachment. Every row names the channel given here, never whichever channel
+ * is open when a statement happens to be built. Throws when the files would
+ * not fit one batch, so a send can never be split across two.
+ *
+ * `files` are uploaded entries: { id, thumbId, name, mime_type, size }.
+ * `newId` makes an attachment row's id.
+ */
+export function messageBatch({ id, channelId, authorId, authorName, body, createdAt }, files, newId) {
+  if (files.length > MAX_ATTACHMENTS) {
+    throw new Error(`A message can carry up to ${MAX_ATTACHMENTS} files.`);
+  }
+  return [
+    {
+      sql: `INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [id, channelId, authorId, authorName, body, createdAt],
+    },
+    ...files.map(f => ({
+      sql: `INSERT INTO app_group_channels__message_files (id, message_id, channel_id, author_id, file_id, thumb_file_id, file_name, mime_type, size_bytes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      params: [newId(), id, channelId, authorId, f.id, f.thumbId ?? null, f.name, f.mime_type, f.size ?? 0, createdAt],
+    })),
+  ];
 }

@@ -556,8 +556,10 @@
 import { memberColor, initial, esc, formatRelativeDate, formatClockTime,
          canManageChannels, canSeeChannel, canPostInChannel,
          slugify, resolveChannelMemberIds, renderBody,
-         extractMentionedIds, dateLabel, isSameDay, shouldGroupMessages, searchableFields } from "./logic.js";
-import { hubAlert, createFilesHelper, searchMatch, hubToday, glyph, chickadee } from "/hub-sdk.js";
+         extractMentionedIds, dateLabel, isSameDay, shouldGroupMessages, searchableFields,
+         authorName, mentionCandidateIds, createLatestLoader,
+         MAX_BATCH, MAX_ATTACHMENTS, acceptFiles, messageBatch } from "./logic.js";
+import { hubAlert, createDbHelper, createFilesHelper, searchMatch, hubToday, glyph, chickadee } from "/hub-sdk.js";
 
 // ── Globals ───────────────────────────────────────────────────────────────────
 const CONTEXT      = window.__CONTEXT_URL  ?? "";
@@ -593,11 +595,14 @@ let lastReadMap      = {};  // channelId → ISO timestamp (when I last opened i
 let latestMsgMap     = {};  // channelId → ISO timestamp of the channel's newest message
 let currentChannelId = null;
 let messages         = [];
-let messageOffset    = 0;
+let hasEarlier       = false;        // the channel has messages older than the ones loaded
 const PAGE           = 50;
 let showArchived     = false;
 let searchQuery      = "";
-let pendingFiles     = []; // { file, id?, url?, uploading }
+// Files picked but not yet sent, per channel: channelId → [{ file, id?, url?, uploading }].
+// Kept per channel so a file picked in one is never sent with a message in another.
+let pendingByChannel = {};
+const pendingFor = (channelId) => (pendingByChannel[channelId] ??= []);
 let mentionQuery     = null;
 let mentionCursorPos = 0;
 let highlightedMention = 0;
@@ -605,42 +610,25 @@ let modalEl          = null;
 let chMenuEl         = null;
 
 // ── DB helper ─────────────────────────────────────────────────────────────────
-async function db(sql, params = []) {
-  if (!DB) return { rows: [] };
-  const res = await fetch(DB, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sql, params }),
-  });
-  return res.json();
-}
+// The SDK helper throws on a refused statement. fetch() does not reject on 4xx
+// or 5xx, and a refusal is a JSON body with `error` (403 row policy, 400 bad
+// statement, 507 over quota), so a helper that only parsed the body made a
+// refused send or a refused channel edit look like it had worked.
+const db = createDbHelper(DB);
 
-// Atomic multi-statement form of /api/db, capped at 25 statements server-side.
-// Rebuilding a custom channel's roster is a DELETE followed by one INSERT per
-// member; issued separately, anything that interrupted the sequence left the
-// channel with NO members — and `messages` is channel_scoped on that table, so
-// every message in it became unreadable to everyone but leadership.
-const MAX_BATCH = 25;
-
-async function dbBatch(statements) {
-  if (!DB || !statements.length) return [];
-  const res = await fetch(DB, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ statements }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok || body.error) throw new Error(body?.error ?? `batch failed (${res.status})`);
-  return body.results ?? [];
-}
-
-// Chunks past the cap lose atomicity at the chunk boundary, so the DELETE rides
-// in the FIRST chunk with as many INSERTs as fit. A channel of more than 24
-// custom members can still end up partially rebuilt if a later chunk fails, but
-// it can no longer end up empty.
+// db.batch() is the atomic multi-statement form of /api/db, capped at 25
+// statements server-side. Rebuilding a custom channel's roster is a DELETE
+// followed by one INSERT per member; issued separately, anything that
+// interrupted the sequence left the channel with NO members — and `messages` is
+// channel_scoped on that table, so every message in it became unreadable to
+// everyone but leadership. MAX_BATCH (logic.js) is that cap.
+// Chunks past the cap lose atomicity at the chunk boundary, so the first
+// statement rides in the FIRST chunk with as many of the rest as fit. A channel
+// of more than 24 custom members can still end up partially rebuilt if a later
+// chunk fails, but it can no longer end up empty.
 async function dbBatchAll(statements) {
   for (let i = 0; i < statements.length; i += MAX_BATCH) {
-    await dbBatch(statements.slice(i, i + MAX_BATCH));
+    await db.batch(statements.slice(i, i + MAX_BATCH));
   }
 }
 
@@ -763,6 +751,10 @@ async function loadChannelLatest() {
   for (const r of (res.rows ?? [])) latestMsgMap[r.channel_id] = r.last_at;
 }
 
+// One page of a channel, oldest first, ending `offset` messages before the
+// channel's newest. Offset 0 is the latest page: the query walks back from the
+// newest message and the page is turned round for display. Reading forward from
+// the oldest instead showed a busy channel its first fifty messages forever.
 async function loadMessages(channelId, offset = 0) {
   if (!DB) return demoDemoMessages(channelId);
 
@@ -774,11 +766,11 @@ async function loadMessages(channelId, offset = 0) {
   const res = await db(
     `SELECT * FROM app_group_channels__messages
      WHERE channel_id = ?
-     ORDER BY created_at ASC, id ASC
+     ORDER BY created_at DESC, id DESC
      LIMIT ${lim} OFFSET ${off}`,
     [channelId]
   );
-  const msgs = (res.rows ?? []).map(m => ({ ...m, attachments: [] }));
+  const msgs = (res.rows ?? []).reverse().map(m => ({ ...m, author_name: authorName(m, members), attachments: [] }));
   if (!msgs.length) return msgs;
 
   // Attachments are fetched in a SEPARATE query. `message_files` is its own
@@ -789,18 +781,24 @@ async function loadMessages(channelId, offset = 0) {
   for (const m of msgs) byId[m.id] = m;
   const ph = msgs.map(() => "?").join(",");
   const fRes = await db(
-    `SELECT id, message_id, file_id, file_name, mime_type, size_bytes
+    `SELECT id, message_id, file_id, thumb_file_id, file_name, mime_type, size_bytes
      FROM app_group_channels__message_files
      WHERE message_id IN (${ph})`,
     msgs.map(m => m.id)
   );
   for (const f of (fRes.rows ?? [])) {
     byId[f.message_id]?.attachments.push({
-      id: f.id, file_id: f.file_id, file_name: f.file_name,
+      id: f.id, file_id: f.file_id, thumb_file_id: f.thumb_file_id ?? null, file_name: f.file_name,
       mime_type: f.mime_type, size_bytes: f.size_bytes,
     });
   }
   return msgs;
+}
+
+// Replaces the open channel's messages with its latest page.
+function showLatest(msgs) {
+  messages = msgs;
+  hasEarlier = msgs.length >= PAGE;
 }
 
 function demoDemoMessages(channelId) {
@@ -822,12 +820,13 @@ async function searchMessages(query) {
   // channels the caller may see — and filter on the DECRYPTED body client-side.
   if (!query.trim()) return [];
   const res = await db(
-    `SELECT id, channel_id, author_name, body, created_at
+    `SELECT id, channel_id, author_id, author_name, body, created_at
      FROM app_group_channels__messages
      ORDER BY created_at DESC
      LIMIT 500`
   );
   return (res.rows ?? [])
+    .map(m => ({ ...m, author_name: authorName(m, members) }))
     .filter(m => searchMatch(query, searchableFields(m)))
     .slice(0, 50);
 }
@@ -847,7 +846,7 @@ async function notifyChannel(channelId, title, body, mentionIds) {
       topic_id: channelId,
       title,
       body,
-      url: `/run/${APP_ID}?channelId=${channelId}`,
+      url: `/run/${APP_ID}?channelId=${encodeURIComponent(channelId)}`,
       also_notify: Array.isArray(mentionIds) ? mentionIds : [],
     }),
   });
@@ -915,8 +914,11 @@ function renderSidebar() {
     html += archivedChs.map(ch => channelItemHtml(ch)).join("");
   }
 
-  if (channels.length > visible.length || archivedChs.length > 0) {
-    const archivedTotal = channels.filter(c => c.archived_at).length;
+  {
+    // Counted over the archived channels this member belongs to, the only ones
+    // the toggle can reveal.
+    const me = ME ?? { id: "", role: "member" };
+    const archivedTotal = channels.filter(c => c.archived_at && canSeeChannel(me, c, channelMembersMap[c.id] ?? [], groups)).length;
     if (archivedTotal) {
       html += `<button class="toggle-archived" onclick="window.toggleArchived()">
         ${showArchived ? "▾ Hide archived" : `▸ Show archived (${archivedTotal})`}
@@ -936,7 +938,7 @@ function channelItemHtml(ch) {
   const active = ch.id === currentChannelId ? "active" : "";
   const archived = ch.archived_at ? "archived-ch" : "";
   const unread = hasUnread(ch);
-  return `<div class="channel-item ${active} ${archived}" data-testid="channel-item" data-channel-id="${esc(ch.id)}" onclick="window.openChannel('${esc(ch.id)}')">
+  return `<div class="channel-item ${active} ${archived}" data-testid="channel-item" data-channel-id="${esc(ch.id)}" onclick="window.openChannel(this.dataset.channelId)">
     <span class="ch-hash">#</span>
     <span class="ch-name" style="${unread ? "font-weight:600;color:var(--text)" : ""}">${esc(ch.name)}</span>
     ${unread ? `<span class="ch-unread"></span>` : ""}
@@ -993,6 +995,7 @@ function renderMain() {
   `;
 
   renderMessages();
+  renderPendingFiles();
 }
 
 function composerHtml(ch) {
@@ -1018,7 +1021,7 @@ function composerHtml(ch) {
   `;
 }
 
-function renderMessages() {
+function renderMessages({ keepPosition = false } = {}) {
   const wrap = document.getElementById("messages-wrap");
   if (!wrap) return;
 
@@ -1033,7 +1036,7 @@ function renderMessages() {
 
   let html = "";
 
-  if (messageOffset > 0) {
+  if (hasEarlier) {
     html += `<button class="load-more-btn" onclick="window.loadMoreMessages()">Load earlier messages</button>`;
   }
 
@@ -1053,12 +1056,22 @@ function renderMessages() {
     prevMsg = msg;
   }
 
+  // Loading earlier messages grows the list upward: keep what the member was
+  // reading where it was. Anything else shows the newest message.
+  const fromBottom = wrap.scrollHeight - wrap.scrollTop;
   wrap.innerHTML = html;
-  wrap.scrollTop = wrap.scrollHeight;
+  wrap.scrollTop = keepPosition ? wrap.scrollHeight - fromBottom : wrap.scrollHeight;
+}
+
+// A stored file id as an attribute-safe address. The id comes from a row any
+// channel member can write, so the address is escaped before it is put in an
+// attribute (files.url() encodes the id itself).
+function fileHref(fileId) {
+  return esc(files.url(String(fileId ?? "")) ?? "");
 }
 
 function messageHtml(msg, grouped = false) {
-  const color = memberColor(msg.author_id);
+  const color = memberColor(String(msg.author_id ?? ""));
   const initials = initial(msg.author_name);
   const bodyHtml = renderBody(msg.body, members);
   const timeStr = formatClockTime(msg.created_at);
@@ -1068,10 +1081,12 @@ function messageHtml(msg, grouped = false) {
   if (msg.attachments?.length) {
     filesHtml = `<div class="msg-files">` +
       msg.attachments.map(f => {
-        if (f.mime_type.startsWith("image/")) {
-          return `<img class="msg-file-img" src="${files.url(f.file_id)}" alt="${esc(f.file_name)}" loading="lazy" />`;
+        if (String(f.mime_type ?? "").startsWith("image/")) {
+          // The thread draws the photo's small copy when one was kept; the
+          // link around it opens the photo itself.
+          return `<a href="${fileHref(f.file_id)}" target="_blank" rel="noopener"><img class="msg-file-img" src="${fileHref(f.thumb_file_id || f.file_id)}" alt="${esc(f.file_name)}" loading="lazy" /></a>`;
         }
-        return `<a class="msg-file-link" href="${files.url(f.file_id)}" target="_blank" rel="noopener">${glyph("document")} ${esc(f.file_name)}</a>`;
+        return `<a class="msg-file-link" href="${fileHref(f.file_id)}" target="_blank" rel="noopener">${glyph("document")} ${esc(f.file_name)}</a>`;
       }).join("") +
     `</div>`;
   }
@@ -1099,7 +1114,15 @@ function messageHtml(msg, grouped = false) {
 }
 
 async function renderSearchPane(main) {
-  const results = await searchMessages(searchQuery);
+  const query = searchQuery;
+  let results;
+  try {
+    results = await searchMessages(query);
+  } catch (e) {
+    if (searchQuery === query) hubAlert(`Search failed: ${e.message}`);
+    return;
+  }
+  if (searchQuery !== query) return;
 
   const chMap = {};
   for (const ch of channels) chMap[ch.id] = ch;
@@ -1130,7 +1153,7 @@ async function renderSearchPane(main) {
         );
       }
       html += `
-        <div class="search-result-item" onclick="window.jumpToMessage('${esc(r.channel_id)}')">
+        <div class="search-result-item" data-channel-id="${esc(r.channel_id)}" onclick="window.jumpToMessage(this.dataset.channelId)">
           <div class="search-result-ch">#${esc(ch.name)}</div>
           <div class="search-result-body">${highlighted}</div>
           <div class="search-result-meta">${esc(r.author_name)} · ${formatRelativeDate(r.created_at)}</div>
@@ -1143,16 +1166,40 @@ async function renderSearchPane(main) {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
+// Opens a channel on its latest messages (logic.js createLatestLoader). The
+// open channel changes only in `commit`, once the messages are in hand: set
+// before the load, a failed load left the previous channel's composer on screen
+// while Send posted to the channel that never opened. An answer for a channel
+// the member has already left is dropped.
+const showChannel = createLatestLoader({
+  load: async (id, { reloadLists = false } = {}) => {
+    if (reloadLists) await Promise.all([loadChannels(), loadSubscriptions(), loadChannelLatest()]);
+    return loadMessages(id, 0);
+  },
+  commit: (id, msgs) => {
+    currentChannelId = id;
+    searchQuery = "";
+    document.getElementById("search-input").value = "";
+    showLatest(msgs);
+    renderSidebar();
+    renderMain();
+    markRead(id).catch(() => {});
+  },
+});
+
 window.openChannel = async function(id) {
-  if (currentChannelId === id && !searchQuery) return;
-  searchQuery = "";
-  document.getElementById("search-input").value = "";
-  currentChannelId = id;
-  messageOffset = 0;
-  messages = await loadMessages(id, 0);
-  renderSidebar();
-  renderMain();
-  await markRead(id);
+  if (currentChannelId === id && !searchQuery) {
+    // Already here. But the member may have clicked another channel a moment
+    // ago and come back before it loaded: drop that load, or it would still
+    // open over the channel they just chose.
+    showChannel.cancel();
+    return;
+  }
+  try {
+    await showChannel(id);
+  } catch (e) {
+    hubAlert(`Could not load this channel: ${e.message}`);
+  }
 };
 
 window.refreshCurrentChannel = async function() {
@@ -1160,12 +1207,8 @@ window.refreshCurrentChannel = async function() {
   const btn = document.getElementById("refresh-channel-btn");
   if (btn) { btn.disabled = true; btn.textContent = "↻ Refreshing"; }
   try {
-    await Promise.all([loadChannels(), loadSubscriptions(), loadChannelLatest()]);
-    messages = await loadMessages(currentChannelId, 0);
-    messageOffset = 0;
-    renderSidebar();
-    renderMain();
-    await markRead(currentChannelId);
+    // A committed refresh redraws the pane, button included.
+    await showChannel(currentChannelId, { reloadLists: true });
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = "↻ Refresh"; }
     hubAlert(`Refresh failed: ${err.message}`);
@@ -1173,10 +1216,24 @@ window.refreshCurrentChannel = async function() {
 };
 
 window.loadMoreMessages = async function() {
-  messageOffset += PAGE;
-  const older = await loadMessages(currentChannelId, messageOffset);
-  messages = [...older, ...messages];
-  renderMessages();
+  const id = currentChannelId;
+  const generation = showChannel.generation();
+  let older;
+  try {
+    // Offset by what is already on screen, counted back from the newest.
+    older = await loadMessages(id, messages.length);
+  } catch (e) {
+    hubAlert(`Could not load earlier messages: ${e.message}`);
+    return;
+  }
+  // The channel was reloaded or left while the page was on its way.
+  if (generation !== showChannel.generation() || id !== currentChannelId) return;
+  hasEarlier = older.length >= PAGE;
+  // A message posted since the last load shifts every offset by one, so the
+  // page can overlap what is already shown.
+  const shown = new Set(messages.map(m => m.id));
+  messages = [...older.filter(m => !shown.has(m.id)), ...messages];
+  renderMessages({ keepPosition: true });
 };
 
 window.toggleArchived = function() {
@@ -1203,11 +1260,11 @@ window.toggleFollow = async function(channelId) {
   if (wasFollowing) subscriptions.delete(channelId); else subscriptions.add(channelId);
   renderMain(); // reflect the bell immediately (optimistic)
   try {
-    const r = wasFollowing
-      ? await db(`DELETE FROM app_group_channels__channel_subscriptions WHERE channel_id = ? AND member_id = ?`, [channelId, ME.id])
-      : await db(`INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, [channelId, ME.id]);
-    if (r && r.error) throw new Error(r.error);
-  } catch {
+    await (wasFollowing
+      ? db(`DELETE FROM app_group_channels__channel_subscriptions WHERE channel_id = ? AND member_id = ?`, [channelId, ME.id])
+      : db(`INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, [channelId, ME.id]));
+  } catch (e) {
+    hubAlert(e.message ?? "Could not change whether you follow this channel.");
     if (wasFollowing) subscriptions.add(channelId); else subscriptions.delete(channelId);
     renderMain();
   }
@@ -1252,7 +1309,7 @@ function updateMentionPopup(ta) {
 
   const ch = channels.find(c => c.id === currentChannelId);
   if (!ch) { closeMentionPopup(); return; }
-  const memberIds = resolveChannelMemberIds(ch, members, channelMembersMap[ch.id] ?? [], groups);
+  const memberIds = mentionCandidateIds(ch, members, channelMembersMap[ch.id] ?? [], groups, canManageCh());
   const memberIdSet = new Set(memberIds);
   const channelMembers = members.filter(m => memberIdSet.has(m.id));
 
@@ -1299,27 +1356,39 @@ window.insertMention = function(name) {
 window.onFileSelected = async function(e) {
   const selected = Array.from(e.target.files);
   e.target.value = "";
-  for (const file of selected) {
-    const entry = { tempId: crypto.randomUUID(), file, uploading: true, id: null, url: null, name: file.name, mime_type: file.type };
-    pendingFiles.push(entry);
+  // The files belong to the channel they were picked in, wherever the member
+  // is by the time an upload finishes.
+  const channelId = currentChannelId;
+  if (!channelId) return;
+  const { accepted, refused } = acceptFiles(selected, pendingFor(channelId).length);
+  if (refused.length) {
+    hubAlert(`A message can carry up to ${MAX_ATTACHMENTS} files. Send the rest in another message.`);
+  }
+  for (const file of accepted) {
+    const entry = { tempId: crypto.randomUUID(), file, uploading: true, id: null, thumbId: null, url: null, name: file.name, mime_type: file.type };
+    pendingFor(channelId).push(entry);
     renderPendingFiles();
     try {
-      const { id, url } = await files.upload(file);
+      // The hub keeps a small copy with a photo. Any other file gets none.
+      const { id, url, thumbnailId } = await files.upload(file, { thumbnail: true });
       entry.id = id;
+      entry.thumbId = thumbnailId ?? null;
       entry.url = url;
       entry.uploading = false;
     } catch (err) {
-      pendingFiles = pendingFiles.filter(f => f.tempId !== entry.tempId);
+      pendingByChannel[channelId] = pendingFor(channelId).filter(f => f.tempId !== entry.tempId);
       hubAlert(`Upload failed: ${err.message}`);
     }
     renderPendingFiles();
   }
 };
 
+// Draws the open channel's pending files. Called on every channel render too,
+// so files picked earlier in a channel are still shown on coming back to it.
 function renderPendingFiles() {
   const el = document.getElementById("pending-files-list");
   if (!el) return;
-  el.innerHTML = pendingFiles.map(f => `
+  el.innerHTML = pendingFor(currentChannelId).map(f => `
     <div class="pending-file-chip">
       ${f.uploading ? glyph("hourglass") : glyph("document")} ${esc(f.name)}
       ${!f.uploading ? `<button onclick="window.removePendingFile('${f.tempId}')" aria-label="Remove file">${glyph("close")}</button>` : ""}
@@ -1327,82 +1396,95 @@ function renderPendingFiles() {
 }
 
 window.removePendingFile = async function(tempId) {
-  const f = pendingFiles.find(x => x.tempId === tempId);
+  const channelId = currentChannelId;
+  const f = pendingFor(channelId).find(x => x.tempId === tempId);
   if (f?.id) await files.delete(f.id).catch(() => {});
-  pendingFiles = pendingFiles.filter(x => x.tempId !== tempId);
+  pendingByChannel[channelId] = pendingFor(channelId).filter(x => x.tempId !== tempId);
   renderPendingFiles();
 };
 
 // ── Send ──────────────────────────────────────────────────────────────────────
 window.sendMessage = async function() {
-  if (!ME) return;
+  if (!ME || !currentChannelId) return;
   const ta = document.getElementById("composer-ta");
   if (!ta) return;
+  // The channel is fixed here, once. Everything below runs across awaits, and
+  // the member may open another channel before they finish: read again from
+  // `currentChannelId`, the attachments and the notification went to whichever
+  // channel was open by then.
+  const channelId = currentChannelId;
+  const ch = channels.find(c => c.id === channelId);
+  const stillHere = () => currentChannelId === channelId;
   const body = ta.value.trim();
-  if (!body && !pendingFiles.length) return;
-  if (pendingFiles.some(f => f.uploading)) { hubAlert("Still uploading files, please wait."); return; }
+  const filesToAttach = [...pendingFor(channelId)];
+  if (!body && !filesToAttach.length) return;
+  if (filesToAttach.some(f => f.uploading)) { hubAlert("Still uploading files, please wait."); return; }
+  if (filesToAttach.length > MAX_ATTACHMENTS) {
+    hubAlert(`A message can carry up to ${MAX_ATTACHMENTS} files. Remove some and send them in another message.`);
+    return;
+  }
 
   const msgId = crypto.randomUUID();
   const now   = new Date().toISOString();
-  const filesToAttach = [...pendingFiles];
 
   // Optimistic: show message immediately, clear composer
   messages = [...messages, {
-    id: msgId, channel_id: currentChannelId,
+    id: msgId, channel_id: channelId,
     author_id: ME.id, author_name: ME.name,
     body, created_at: now,
     attachments: filesToAttach.map(f => ({
-      id: f.id, file_id: f.id, file_name: f.name,
+      id: f.id, file_id: f.id, thumb_file_id: f.thumbId, file_name: f.name,
       mime_type: f.mime_type, size_bytes: f.file?.size ?? 0,
     })),
   }];
   ta.value = "";
   ta.style.height = "auto";
-  pendingFiles = [];
+  pendingByChannel[channelId] = [];
   renderPendingFiles();
   renderMessages();
 
   try {
-    await db(
-      `INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [msgId, currentChannelId, ME.id, ME.name, body, now]
-    );
-
-    // File inserts in parallel
-    await Promise.all(filesToAttach.map(f =>
-      db(
-        `INSERT INTO app_group_channels__message_files (id, message_id, channel_id, author_id, file_id, file_name, mime_type, size_bytes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [crypto.randomUUID(), msgId, currentChannelId, ME.id, f.id, f.name, f.mime_type, f.file?.size ?? 0, now]
-      )
+    // One batch: the message and its attachment rows land together or not at
+    // all (logic.js messageBatch, which also refuses more files than fit).
+    await db.batch(messageBatch(
+      { id: msgId, channelId, authorId: ME.id, authorName: ME.name, body, createdAt: now },
+      filesToAttach.map(f => ({ ...f, size: f.file?.size ?? 0 })),
+      () => crypto.randomUUID(),
     ));
-
-    // Notify fire-and-forget — doesn't affect sender's UI
-    const ch = channels.find(c => c.id === currentChannelId);
-    if (ch) {
-      // The hub fans out to channel followers + these @mentioned ids, applying
-      // channel-visibility eligibility server-side (channel_subscriptions is
-      // owner_only, so followers can't be resolved or fanned out from the client).
-      const mentionIds = [...new Set(extractMentionedIds(body, members))].filter(id => id !== ME.id);
-      notifyChannel(currentChannelId, `#${ch.name}`, `${ME.name}: ${body.slice(0, 80)}`, mentionIds)
-        .catch(err => console.warn("[group-channels] notification failed", err));
+  } catch (e) {
+    // Revert the optimistic message and give the member their text and files back.
+    pendingByChannel[channelId] = [...filesToAttach, ...pendingFor(channelId)];
+    if (stillHere()) {
+      messages = messages.filter(m => m.id !== msgId);
+      const composer = document.getElementById("composer-ta");
+      if (composer && !composer.value) composer.value = body;
+      renderPendingFiles();
+      renderMessages();
     }
-
-    // Reload for authoritative server state, then mark read
-    messages = await loadMessages(currentChannelId, 0);
-    messageOffset = 0;
-    renderMessages();
-    markRead(currentChannelId).catch(() => {});
-  } catch(e) {
-    // Revert optimistic message and restore composer
-    messages = messages.filter(m => m.id !== msgId);
-    ta.value = body;
-    pendingFiles = filesToAttach;
-    renderPendingFiles();
-    renderMessages();
-    throw e;
+    hubAlert(`Message not sent: ${e.message}`);
+    return;
   }
+
+  // Notify fire-and-forget — doesn't affect sender's UI
+  if (ch) {
+    // The hub fans out to channel followers + these @mentioned ids, applying
+    // channel-visibility eligibility server-side (channel_subscriptions is
+    // owner_only, so followers can't be resolved or fanned out from the client).
+    const mentionIds = [...new Set(extractMentionedIds(body, members))].filter(id => id !== ME.id);
+    notifyChannel(channelId, `#${ch.name}`, `${ME.name}: ${body.slice(0, 80)}`, mentionIds)
+      .catch(err => console.warn("[group-channels] notification failed", err));
+  }
+
+  // Reload for authoritative server state, then mark read. The message is
+  // sent either way; a failed reload just leaves the optimistic copy showing.
+  try {
+    const msgs = await loadMessages(channelId, 0);
+    if (stillHere()) {
+      showLatest(msgs);
+      renderMessages();
+    }
+  } catch { /* the optimistic message stands */ }
+  markRead(channelId).catch(() => {});
 };
 
 // ── Channel management ─────────────────────────────────────────────────────────
@@ -1417,9 +1499,9 @@ window.toggleChMenu = function(e) {
   chMenuEl = document.createElement("div");
   chMenuEl.className = "ch-menu";
   chMenuEl.innerHTML = `
-    ${!ch.archived_at ? `<button class="ch-menu-item" onclick="window.openEditChannel('${esc(ch.id)}')">Edit channel</button>` : ""}
-    ${!ch.is_system && !ch.archived_at ? `<button class="ch-menu-item danger" onclick="window.archiveChannel('${esc(ch.id)}')">Archive channel</button>` : ""}
-    ${ch.archived_at ? `<button class="ch-menu-item" onclick="window.unarchiveChannel('${esc(ch.id)}')">Unarchive channel</button>` : ""}
+    ${!ch.archived_at ? `<button class="ch-menu-item" data-channel-id="${esc(ch.id)}" onclick="window.openEditChannel(this.dataset.channelId)">Edit channel</button>` : ""}
+    ${!ch.is_system && !ch.archived_at ? `<button class="ch-menu-item danger" data-channel-id="${esc(ch.id)}" onclick="window.archiveChannel(this.dataset.channelId)">Archive channel</button>` : ""}
+    ${ch.archived_at ? `<button class="ch-menu-item" data-channel-id="${esc(ch.id)}" onclick="window.unarchiveChannel(this.dataset.channelId)">Unarchive channel</button>` : ""}
   `;
   anchor.appendChild(chMenuEl);
   setTimeout(() => document.addEventListener("click", closeChMenu, { once: true }), 0);
@@ -1445,6 +1527,10 @@ function openChannelModal(ch) {
   const selectedGroupIds = ch ? JSON.parse(ch.membership_roles || "[]") : [];
   const isGroup = ch?.membership_type === "group";
   const isCustom = ch?.membership_type === "custom";
+  // A membership kind this form cannot build (role-based, from before groups).
+  // It is offered as itself and saved unchanged; without that the form opened
+  // such a channel as "All members" and saving it opened the channel to everyone.
+  const keptType = ch && !["all", "group", "custom"].includes(ch.membership_type) ? ch.membership_type : "";
   const customIds = ch ? (channelMembersMap[ch.id] ?? []) : [];
 
   const groupOptions = groups.map(g => `
@@ -1474,7 +1560,8 @@ function openChannelModal(ch) {
     <div class="form-group">
       <label>Membership</label>
       <select id="f-membership" onchange="window.onMembershipChange()">
-        <option value="all"    ${!isGroup && !isCustom ? "selected" : ""}>All members</option>
+        ${keptType ? `<option value="${esc(keptType)}" selected>${keptType === "role" ? "Role-based" : esc(keptType)} (unchanged)</option>` : ""}
+        <option value="all"    ${!isGroup && !isCustom && !keptType ? "selected" : ""}>All members</option>
         <option value="group"  ${isGroup  ? "selected" : ""}>Group-based</option>
         <option value="custom" ${isCustom ? "selected" : ""}>Hand-picked</option>
       </select>
@@ -1495,7 +1582,7 @@ function openChannelModal(ch) {
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="window.closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="f-submit" onclick="window.submitChannel('${editing ? esc(ch.id) : ""}')">
+      <button class="btn btn-primary" id="f-submit" data-channel-id="${editing ? esc(ch.id) : ""}" onclick="window.submitChannel(this.dataset.channelId)">
         ${editing ? "Save" : "Create"}
       </button>
     </div>
@@ -1538,6 +1625,10 @@ window.submitChannel = async function(existingId) {
     customMemberIds = [...document.querySelectorAll(".member-picker input:checked")].map(el => el.value);
     if (!customMemberIds.length) { hubAlert("Select at least one member."); return; }
   }
+  if (!["all", "group", "custom"].includes(membershipType)) {
+    // A kind the form does not build: keep the channel's stored value as it is.
+    membershipRoles = channels.find(c => c.id === existingId)?.membership_roles ?? "[]";
+  }
 
   const btn = document.getElementById("f-submit");
   if (btn) { btn.disabled = true; btn.textContent = existingId ? "Saving…" : "Creating…"; }
@@ -1545,8 +1636,8 @@ window.submitChannel = async function(existingId) {
   try {
     if (existingId) {
       await db(
-        `UPDATE app_group_channels__channels SET name = ?, description = ?, membership_type = ?, membership_roles = ? WHERE id = ?`,
-        [name, desc, membershipType, membershipRoles, existingId]
+        `UPDATE app_group_channels__channels SET name = ?, slug = ?, description = ?, membership_type = ?, membership_roles = ? WHERE id = ?`,
+        [name, slug, desc, membershipType, membershipRoles, existingId]
       );
       if (membershipType === "custom") {
         await dbBatchAll([
@@ -1568,21 +1659,22 @@ window.submitChannel = async function(existingId) {
         [id, name, slug, desc, membershipType, membershipRoles, ME?.id ?? "", now]
       );
       if (membershipType === "custom") {
-        await Promise.all(customMemberIds.map(mid =>
-          db(
-            `INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)`,
-            [id, mid]
-          )
-        ));
+        await dbBatchAll(customMemberIds.map(mid => ({
+          sql: `INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES (?, ?)`,
+          params: [id, mid],
+        })));
       }
     }
 
     closeModal();
     await loadChannels();
     renderSidebar();
+    renderMain();
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = existingId ? "Save" : "Create"; }
-    throw e;
+    hubAlert(/unique/i.test(e.message ?? "")
+      ? "Another channel already uses that name."
+      : `Could not save the channel: ${e.message}`);
   }
 };
 
@@ -1591,17 +1683,22 @@ window.archiveChannel = async function(id) {
   const { hubConfirm } = await import("/hub-sdk.js");
   const ok = await hubConfirm({
     message: "Archive this channel?",
-    description: "The channel will become read-only and hidden from the default view. This cannot be undone from the app.",
+    description: "The channel will become read-only and hidden from the default view. A channel manager can unarchive it later.",
     confirmLabel: "Archive",
     destructive: true,
   });
   if (!ok) return;
 
-  await db(
-    `UPDATE app_group_channels__channels SET archived_at = ? WHERE id = ?`,
-    [new Date().toISOString(), id]
-  );
-  await loadChannels();
+  try {
+    await db(
+      `UPDATE app_group_channels__channels SET archived_at = ? WHERE id = ?`,
+      [new Date().toISOString(), id]
+    );
+    await loadChannels();
+  } catch (e) {
+    hubAlert(`Could not archive the channel: ${e.message}`);
+    return;
+  }
   if (currentChannelId === id) currentChannelId = null;
   renderSidebar();
   renderMain();
@@ -1609,11 +1706,16 @@ window.archiveChannel = async function(id) {
 
 window.unarchiveChannel = async function(id) {
   closeChMenu();
-  await db(
-    `UPDATE app_group_channels__channels SET archived_at = NULL WHERE id = ?`,
-    [id]
-  );
-  await loadChannels();
+  try {
+    await db(
+      `UPDATE app_group_channels__channels SET archived_at = NULL WHERE id = ?`,
+      [id]
+    );
+    await loadChannels();
+  } catch (e) {
+    hubAlert(`Could not unarchive the channel: ${e.message}`);
+    return;
+  }
   renderSidebar();
   renderMain();
 };
@@ -1712,8 +1814,21 @@ function handleDeepLink() {
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
+// Any failure renders an error with a retry: left uncaught, it stopped the page
+// on an empty sidebar with the cause visible only in the console.
 (async () => {
-  await Promise.all([loadMembers(), loadSettings(), loadChannels(), loadSubscriptions(), loadLastRead(), loadChannelLatest()]);
+  try {
+    // The roster first: messages are shown under the name it gives their author.
+    await Promise.all([loadMembers(), loadSettings(), loadChannels(), loadSubscriptions(), loadLastRead(), loadChannelLatest()]);
+  } catch (e) {
+    document.getElementById("main-pane").innerHTML = `<div class="no-channel">
+      <div>${chickadee("perched", { size: 72 })}</div>
+      <div style="font-weight:600">Channels couldn't load.</div>
+      <div style="color:var(--muted);font-size:.85rem">${esc(e?.message ?? "Something went wrong.")}</div>
+      <button class="btn btn-primary btn-sm" onclick="window.location.reload()">Try again</button>
+    </div>`;
+    return;
+  }
   renderSidebar();
   handleDeepLink();
   if (!currentChannelId) renderMain();

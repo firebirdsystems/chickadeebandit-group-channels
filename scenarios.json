@@ -568,6 +568,122 @@
           "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "channel_id": "ch1", "member_id": "scn-kid" }] }
         }
       ]
+    },
+    {
+      "name": "an archived channel takes no new messages or attachments, whoever asks, until it is unarchived",
+      "members": { "member": "adult" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, ?, 'all', '[]', 0, ?, ?)",
+          "params": ["ch1", "General", "general", "everyone", "{{member}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "db",
+          "as": "member",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["m1", "ch1", "{{member}}", "Member", "before", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 200 }
+        },
+        {
+          "action": "seedRaw",
+          "sql": "UPDATE app_group_channels__channels SET archived_at = ? WHERE id = ?",
+          "params": ["2026-01-01T00:00:00Z", "ch1"]
+        },
+        {
+          "action": "db",
+          "as": "member",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["m2", "ch1", "{{member}}", "Member", "after", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 403, "errorIncludes": "frozen" }
+        },
+        {
+          "action": "db",
+          "as": "member",
+          "sql": "INSERT INTO app_group_channels__message_files (id, message_id, channel_id, author_id, file_id, file_name, mime_type, size_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "params": ["f1", "m1", "ch1", "{{member}}", "file-1", "a.txt", "text/plain", 1, "2026-01-01T00:00:00Z"],
+          "expect": { "status": 403, "errorIncludes": "frozen" }
+        },
+        {
+          "action": "db",
+          "as": "member",
+          "sql": "SELECT id FROM app_group_channels__messages WHERE channel_id = ?",
+          "params": ["ch1"],
+          "expect": { "status": 200, "rowCount": 1, "rowsContain": [{ "id": "m1" }] }
+        },
+        {
+          "action": "seedRaw",
+          "sql": "UPDATE app_group_channels__channels SET archived_at = NULL WHERE id = ?",
+          "params": ["ch1"]
+        },
+        {
+          "action": "db",
+          "as": "member",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["m3", "ch1", "{{member}}", "Member", "back", "2026-01-01T00:00:00Z"],
+          "expect": { "status": 200 }
+        }
+      ]
+    },
+    {
+      "name": "the unread badge counts recent messages past the caller's own read marker, in channels the caller can see",
+      "members": { "reader": "adult", "other": "adult" },
+      "steps": [
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, ?, ?, '[]', 0, ?, ?)",
+          "params": ["ch1", "General", "general", "everyone", "all", "{{reader}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channels (id, name, slug, description, membership_type, membership_roles, is_system, created_by, created_at) VALUES (?, ?, ?, ?, ?, '[]', 0, ?, ?)",
+          "params": ["ch2", "Board", "board", "board only", "invite", "{{reader}}", "2026-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__channel_members (channel_id, member_id) VALUES ('ch2', ?)",
+          "params": ["{{reader}}"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["m0", "ch1", "{{reader}}", "Reader", "long ago", "2025-01-01T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["m1", "ch1", "{{reader}}", "Reader", "one", "2026-01-02T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["m2", "ch1", "{{reader}}", "Reader", "two", "2026-01-03T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__messages (id, channel_id, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          "params": ["m3", "ch2", "{{reader}}", "Reader", "board matter", "2026-01-03T00:00:00Z"]
+        },
+        {
+          "action": "seedRaw",
+          "sql": "INSERT INTO app_group_channels__member_last_read (channel_id, member_id, last_read_at) VALUES ('ch1', ?, '2026-01-02T12:00:00Z')",
+          "params": ["{{reader}}"]
+        },
+        {
+          "action": "db",
+          "as": "reader",
+          "sql": "SELECT COUNT(*) AS n FROM app_group_channels__messages m LEFT JOIN app_group_channels__member_last_read r ON r.channel_id = m.channel_id WHERE m.created_at >= date(?, '-120 days') AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at) LIMIT 1",
+          "params": ["2026-03-01"],
+          "expect": { "status": 200, "rowsContain": [{ "n": 2 }] }
+        },
+        {
+          "action": "db",
+          "as": "other",
+          "sql": "SELECT COUNT(*) AS n FROM app_group_channels__messages m LEFT JOIN app_group_channels__member_last_read r ON r.channel_id = m.channel_id WHERE m.created_at >= date(?, '-120 days') AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at) LIMIT 1",
+          "params": ["2026-03-01"],
+          "expect": { "status": 200, "rowsContain": [{ "n": 2 }] }
+        }
+      ]
     }
   ]
 }
