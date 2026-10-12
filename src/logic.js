@@ -275,7 +275,7 @@ export function acceptFiles(selected, pendingCount) {
  */
 export function messageBatch({ id, channelId, authorId, authorName, body, createdAt }, files, newId) {
   if (files.length > MAX_ATTACHMENTS) {
-    throw new Error(`A message can carry up to ${MAX_ATTACHMENTS} files.`);
+    throw Object.assign(new Error(`A message can carry up to ${MAX_ATTACHMENTS} files.`), { forUser: true });
   }
   return [
     {

@@ -629,6 +629,13 @@ const db = createDbHelper(DB);
 // statement rides in the FIRST chunk with as many of the rest as fit. A channel
 // of more than 24 custom members can still end up partially rebuilt if a later
 // chunk fails, but it can no longer end up empty.
+// Only wording this app wrote for the reader is shown; the hub's own error text
+// goes to the console and the reader gets the fixed line.
+function failText(e, line) {
+  if (!e?.forUser) console.error(e);
+  return e?.forUser ? e.message : line;
+}
+
 async function dbBatchAll(statements) {
   for (let i = 0; i < statements.length; i += MAX_BATCH) {
     await db.batch(statements.slice(i, i + MAX_BATCH));
@@ -1126,7 +1133,8 @@ async function renderSearchPane(main) {
   try {
     results = await searchMessages(query);
   } catch (e) {
-    if (searchQuery === query) hubAlert(`Search failed: ${e.message}`);
+    console.error(e);
+    if (searchQuery === query) hubAlert("Couldn’t search messages.");
     return;
   }
   if (searchQuery !== query) return;
@@ -1205,7 +1213,8 @@ window.openChannel = async function(id) {
   try {
     await showChannel(id);
   } catch (e) {
-    hubAlert(`Could not load this channel: ${e.message}`);
+    console.error(e);
+    hubAlert("Couldn’t load this channel.");
   }
 };
 
@@ -1218,7 +1227,8 @@ window.refreshCurrentChannel = async function() {
     await showChannel(currentChannelId, { reloadLists: true });
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = "↻ Refresh"; }
-    hubAlert(`Refresh failed: ${err.message}`);
+    console.error(err);
+    hubAlert("Couldn’t refresh this channel — try again.");
   }
 };
 
@@ -1230,7 +1240,8 @@ window.loadMoreMessages = async function() {
     // Offset by what is already on screen, counted back from the newest.
     older = await loadMessages(id, messages.length);
   } catch (e) {
-    hubAlert(`Could not load earlier messages: ${e.message}`);
+    console.error(e);
+    hubAlert("Couldn’t load earlier messages.");
     return;
   }
   // The channel was reloaded or left while the page was on its way.
@@ -1271,7 +1282,8 @@ window.toggleFollow = async function(channelId) {
       ? db(`DELETE FROM app_group_channels__channel_subscriptions WHERE channel_id = ? AND member_id = ?`, [channelId, ME.id])
       : db(`INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, [channelId, ME.id]));
   } catch (e) {
-    hubAlert(e.message ?? "Could not change whether you follow this channel.");
+    console.error(e);
+    hubAlert(wasFollowing ? "Couldn’t unfollow this channel — try again." : "Couldn’t follow this channel — try again.");
     if (wasFollowing) subscriptions.add(channelId); else subscriptions.delete(channelId);
     renderMain();
   }
@@ -1384,7 +1396,11 @@ window.onFileSelected = async function(e) {
       entry.uploading = false;
     } catch (err) {
       pendingByChannel[channelId] = pendingFor(channelId).filter(f => f.tempId !== entry.tempId);
-      hubAlert(`Upload failed: ${err.message}`);
+      // An upload the hub refused (too large, wrong type, storage full) is shown
+      // in the hub's words; any other failure gets this page's own line.
+      const refused = err?.status === 507 || (err?.status >= 400 && err?.status < 500);
+      if (!refused) console.error(err);
+      hubAlert(refused ? `Upload failed: ${err.message}` : "Couldn’t upload the file — try again.");
     }
     renderPendingFiles();
   }
@@ -1468,7 +1484,7 @@ window.sendMessage = async function() {
       renderPendingFiles();
       renderMessages();
     }
-    hubAlert(`Message not sent: ${e.message}`);
+    hubAlert(failText(e, "Couldn’t send the message — try again."));
     return;
   }
 
@@ -1648,7 +1664,7 @@ window.submitChannel = async function(existingId) {
       );
       // The hub answers a write it narrowed to nothing as a success with no
       // rows changed. The roster is left alone when the channel was not saved.
-      if (changed === 0) throw new Error("this channel can no longer be changed.");
+      if (changed === 0) throw Object.assign(new Error("This channel can no longer be changed."), { forUser: true });
       if (membershipType === "custom") {
         await dbBatchAll([
           { sql: `DELETE FROM app_group_channels__channel_members WHERE channel_id = ?`, params: [existingId] },
@@ -1684,7 +1700,7 @@ window.submitChannel = async function(existingId) {
     if (btn) { btn.disabled = false; btn.textContent = existingId ? "Save" : "Create"; }
     hubAlert(/unique/i.test(e.message ?? "")
       ? "Another channel already uses that name."
-      : `Could not save the channel: ${e.message}`);
+      : failText(e, "Couldn’t save the channel — try again."));
   }
 };
 
@@ -1704,10 +1720,10 @@ window.archiveChannel = async function(id) {
       `UPDATE app_group_channels__channels SET archived_at = ? WHERE id = ?`,
       [new Date().toISOString(), id]
     );
-    if (changed === 0) throw new Error("this channel can no longer be changed.");
+    if (changed === 0) throw Object.assign(new Error("This channel can no longer be changed."), { forUser: true });
     await loadChannels();
   } catch (e) {
-    hubAlert(`Could not archive the channel: ${e.message}`);
+    hubAlert(failText(e, "Couldn’t archive the channel — try again."));
     return;
   }
   if (currentChannelId === id) currentChannelId = null;
@@ -1722,10 +1738,10 @@ window.unarchiveChannel = async function(id) {
       `UPDATE app_group_channels__channels SET archived_at = NULL WHERE id = ?`,
       [id]
     );
-    if (changed === 0) throw new Error("this channel can no longer be changed.");
+    if (changed === 0) throw Object.assign(new Error("This channel can no longer be changed."), { forUser: true });
     await loadChannels();
   } catch (e) {
-    hubAlert(`Could not unarchive the channel: ${e.message}`);
+    hubAlert(failText(e, "Couldn’t unarchive the channel — try again."));
     return;
   }
   renderSidebar();
@@ -1788,7 +1804,8 @@ window.saveLeadershipGroup = async function() {
   } catch (e) {
     leadershipGroupId = prev;
     if (btn) { btn.disabled = false; btn.textContent = "Save"; }
-    hubAlert(e.message ?? "Save failed");
+    console.error(e);
+    hubAlert("Couldn’t save the leadership group — try again.");
   }
 };
 
