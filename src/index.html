@@ -522,6 +522,9 @@
     .ch-menu-item.danger { color: var(--red-ink); }
     .ch-menu-anchor { position: relative; }
 
+    .load-error { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: var(--hub-tint-danger, #fee2e2); color: var(--hub-tint-danger-fg, #b91c1c); font-size: 0.9rem; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    .load-error-retry { background: none; border: 1px solid currentColor; border-radius: 8px; padding: 5px 10px; font: inherit; font-weight: 600; color: inherit; cursor: pointer; flex-shrink: 0; }
+
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -650,7 +653,10 @@ async function loadMembers() {
   try {
     const res = await fetch(`${CONTEXT}?keys=family.members,family.groups`);
     debugGroups("context response", { ok: res.ok, status: res.status, url: CONTEXT });
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || typeof data !== "object" || data.error) throw new Error("Could not load the member list");
+    // A 200 can still name a key the hub failed to read: that is a failed load too.
+    if (Array.isArray(data.$errors) && ["family.members", "family.groups"].some((k) => data.$errors.includes(k))) throw new Error("Could not load the member list");
     debugGroups("context payload", {
       keys: Object.keys(data ?? {}),
       hasGroupsKey: Object.prototype.hasOwnProperty.call(data ?? {}, "family.groups"),
@@ -660,9 +666,10 @@ async function loadMembers() {
     members = data["family.members"] ?? [];
     groups  = data["family.groups"]  ?? [];
   } catch (err) {
+    // A roster that could not be read is a failed load: with nobody in it,
+    // every name is missing and the leadership checks are silently false.
     debugGroups("context load failed", { error: err instanceof Error ? err.message : String(err) });
-    members = [];
-    groups = [];
+    throw err;
   }
 }
 
@@ -671,12 +678,12 @@ async function loadMembers() {
 // endpoint (manifest admin_config). This is the trust root for "who is leadership".
 async function loadSettings() {
   if (!DB) { leadershipGroupId = ""; return; }
-  try {
-    const res = await db(
-      `SELECT value AS v FROM app_group_channels__settings WHERE key = 'leadership_group_id' LIMIT 1`
-    );
-    leadershipGroupId = res?.rows?.[0]?.v ?? "";
-  } catch { leadershipGroupId = ""; }
+  // Not caught: a pointer that could not be read is a failed load, not "no
+  // leadership group is set".
+  const res = await db(
+    `SELECT value AS v FROM app_group_channels__settings WHERE key = 'leadership_group_id' LIMIT 1`
+  );
+  leadershipGroupId = res?.rows?.[0]?.v ?? "";
 }
 
 function canManageCh() {
@@ -1635,10 +1642,13 @@ window.submitChannel = async function(existingId) {
 
   try {
     if (existingId) {
-      await db(
+      const { changed } = await db(
         `UPDATE app_group_channels__channels SET name = ?, slug = ?, description = ?, membership_type = ?, membership_roles = ? WHERE id = ?`,
         [name, slug, desc, membershipType, membershipRoles, existingId]
       );
+      // The hub answers a write it narrowed to nothing as a success with no
+      // rows changed. The roster is left alone when the channel was not saved.
+      if (changed === 0) throw new Error("this channel can no longer be changed.");
       if (membershipType === "custom") {
         await dbBatchAll([
           { sql: `DELETE FROM app_group_channels__channel_members WHERE channel_id = ?`, params: [existingId] },
@@ -1690,10 +1700,11 @@ window.archiveChannel = async function(id) {
   if (!ok) return;
 
   try {
-    await db(
+    const { changed } = await db(
       `UPDATE app_group_channels__channels SET archived_at = ? WHERE id = ?`,
       [new Date().toISOString(), id]
     );
+    if (changed === 0) throw new Error("this channel can no longer be changed.");
     await loadChannels();
   } catch (e) {
     hubAlert(`Could not archive the channel: ${e.message}`);
@@ -1707,10 +1718,11 @@ window.archiveChannel = async function(id) {
 window.unarchiveChannel = async function(id) {
   closeChMenu();
   try {
-    await db(
+    const { changed } = await db(
       `UPDATE app_group_channels__channels SET archived_at = NULL WHERE id = ?`,
       [id]
     );
+    if (changed === 0) throw new Error("this channel can no longer be changed.");
     await loadChannels();
   } catch (e) {
     hubAlert(`Could not unarchive the channel: ${e.message}`);
@@ -1816,23 +1828,20 @@ function handleDeepLink() {
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 // Any failure renders an error with a retry: left uncaught, it stopped the page
 // on an empty sidebar with the cause visible only in the console.
-(async () => {
+async function firstLoad() {
   try {
     // The roster first: messages are shown under the name it gives their author.
     await Promise.all([loadMembers(), loadSettings(), loadChannels(), loadSubscriptions(), loadLastRead(), loadChannelLatest()]);
-  } catch (e) {
-    document.getElementById("main-pane").innerHTML = `<div class="no-channel">
-      <div>${chickadee("perched", { size: 72 })}</div>
-      <div style="font-weight:600">Channels couldn't load.</div>
-      <div style="color:var(--muted);font-size:.85rem">${esc(e?.message ?? "Something went wrong.")}</div>
-      <button class="btn btn-primary btn-sm" onclick="window.location.reload()">Try again</button>
-    </div>`;
+  } catch {
+    document.getElementById("main-pane").innerHTML = `<div class="load-error" data-testid="load-error" role="alert" style="margin:12px"><span>Couldn’t load the channels.</span> <button type="button" class="load-error-retry" data-testid="load-retry" onclick="window.retryLoad()">Try again</button></div>`;
     return;
   }
   renderSidebar();
   handleDeepLink();
   if (!currentChannelId) renderMain();
-})();
+}
+window.retryLoad = firstLoad;
+firstLoad();
 </script>
 </body>
 </html>
