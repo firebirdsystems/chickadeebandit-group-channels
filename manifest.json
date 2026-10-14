@@ -37,7 +37,6 @@
     "requires_approval": false
   },
   "resource_limits": {
-    "max_db_bytes": 52428800,
     "max_files_bytes": 524288000,
     "max_store_reads_per_day": 2000,
     "max_store_writes_per_day": 500
@@ -148,18 +147,6 @@
         "fk_column": "channel_id",
         "status_column": "archived_at",
         "locked_when_not_null": true
-      },
-      "retain_days": {
-        "default": 365,
-        "timestamp_column": "created_at",
-        "override_key": "message_history",
-        "dependent_tables": [
-          {
-            "table": "message_files",
-            "foreign_key": "message_id",
-            "file_id_column": "file_id"
-          }
-        ]
       }
     },
     "message_files": {
@@ -192,11 +179,22 @@
       "adults_bypass": false
     }
   },
-  "delete_file_columns": {
-    "message_files": [
-      "file_id",
-      "thumb_file_id"
-    ]
+  "retention": {
+    "messages": {
+      "default": 365,
+      "timestamp_column": "created_at",
+      "override_key": "message_history",
+      "dependent_tables": [
+        {
+          "table": "message_files",
+          "foreign_key": "message_id",
+          "file_id_column": "file_id"
+        }
+      ]
+    }
+  },
+  "file_columns": {
+    "message_files": { "columns": ["file_id", "thumb_file_id"] }
   },
   "subscription_notify": {
     "subscription_table": "channel_subscriptions",
