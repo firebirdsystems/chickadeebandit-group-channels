@@ -561,7 +561,8 @@ import { memberColor, initial, esc, formatRelativeDate, formatClockTime,
          slugify, resolveChannelMemberIds, renderBody,
          extractMentionedIds, dateLabel, isSameDay, shouldGroupMessages, searchableFields,
          authorName, mentionCandidateIds, createLatestLoader,
-         MAX_BATCH, MAX_ATTACHMENTS, acceptFiles, messageBatch } from "./logic.js";
+         MAX_BATCH, MAX_ATTACHMENTS, acceptFiles, messageBatch, outcomeUnknown,
+         failureLine, uploadFailureLine } from "./logic.js";
 import { hubAlert, createDbHelper, createFilesHelper, searchMatch, hubToday, glyph, chickadee } from "/hub-sdk.js";
 
 // ── Globals ───────────────────────────────────────────────────────────────────
@@ -605,6 +606,11 @@ let searchQuery      = "";
 // Files picked but not yet sent, per channel: channelId → [{ file, id?, url?, uploading }].
 // Kept per channel so a file picked in one is never sent with a message in another.
 let pendingByChannel = {};
+// The id of the message being composed in each channel, minted on its first
+// Send and kept until a send is known to have landed: a send whose answer was
+// lost may have stored the message, and sending again must find it rather
+// than store a second message naming the same files.
+const composedMsgId = {};
 const pendingFor = (channelId) => (pendingByChannel[channelId] ??= []);
 let mentionQuery     = null;
 let mentionCursorPos = 0;
@@ -630,11 +636,21 @@ const db = createDbHelper(DB);
 // of more than 24 custom members can still end up partially rebuilt if a later
 // chunk fails, but it can no longer end up empty.
 // Only wording this app wrote for the reader is shown; the hub's own error text
-// goes to the console and the reader gets the fixed line.
-function failText(e, line) {
+// goes to the console and the reader gets the line `failureLine` picks from the
+// status ("try again" only where trying again can work).
+function failText(e, words) {
   if (!e?.forUser) console.error(e);
-  return e?.forUser ? e.message : line;
+  return failureLine(e, words);
 }
+
+// A plain `WHERE id = ?` channel write that changed nothing: re-read the
+// channel. true: still there, so the row policy kept the write from this
+// member; false: it is gone; null: the read failed too.
+async function channelFound(id) {
+  try { return !!(await db(`SELECT id FROM app_group_channels__channels WHERE id = ?`, [id])).rows?.[0]; }
+  catch (e) { console.error(e); return null; }
+}
+function unchanged(found) { return Object.assign(new Error("channel write changed no rows"), { found }); }
 
 async function dbBatchAll(statements) {
   for (let i = 0; i < statements.length; i += MAX_BATCH) {
@@ -1283,7 +1299,7 @@ window.toggleFollow = async function(channelId) {
       : db(`INSERT INTO app_group_channels__channel_subscriptions (channel_id, member_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, [channelId, ME.id]));
   } catch (e) {
     console.error(e);
-    hubAlert(wasFollowing ? "Couldn’t unfollow this channel — try again." : "Couldn’t follow this channel — try again.");
+    hubAlert(failureLine(e, { action: wasFollowing ? "unfollow this channel" : "follow this channel", thing: "channel" }));
     if (wasFollowing) subscriptions.add(channelId); else subscriptions.delete(channelId);
     renderMain();
   }
@@ -1396,11 +1412,10 @@ window.onFileSelected = async function(e) {
       entry.uploading = false;
     } catch (err) {
       pendingByChannel[channelId] = pendingFor(channelId).filter(f => f.tempId !== entry.tempId);
-      // An upload the hub refused (too large, wrong type, storage full) is shown
-      // in the hub's words; any other failure gets this page's own line.
-      const refused = err?.status === 507 || (err?.status >= 400 && err?.status < 500);
-      if (!refused) console.error(err);
-      hubAlert(refused ? `Upload failed: ${err.message}` : "Couldn’t upload the file — try again.");
+      // An upload the hub refused (too large, wrong type, storage full) says why
+      // in this page's words; never the hub's.
+      console.error(err);
+      hubAlert(uploadFailureLine(err, { action: "upload the file", thing: "file" }));
     }
     renderPendingFiles();
   }
@@ -1421,7 +1436,7 @@ function renderPendingFiles() {
 window.removePendingFile = async function(tempId) {
   const channelId = currentChannelId;
   const f = pendingFor(channelId).find(x => x.tempId === tempId);
-  if (f?.id) await files.delete(f.id).catch(() => {});
+  if (f?.id && !f.maybeSent) await files.delete(f.id).catch(() => {});
   pendingByChannel[channelId] = pendingFor(channelId).filter(x => x.tempId !== tempId);
   renderPendingFiles();
 };
@@ -1438,7 +1453,7 @@ window.sendMessage = async function() {
   const channelId = currentChannelId;
   const ch = channels.find(c => c.id === channelId);
   const stillHere = () => currentChannelId === channelId;
-  const body = ta.value.trim();
+  let body = ta.value.trim();
   const filesToAttach = [...pendingFor(channelId)];
   if (!body && !filesToAttach.length) return;
   if (filesToAttach.some(f => f.uploading)) { hubAlert("Still uploading files, please wait."); return; }
@@ -1447,7 +1462,10 @@ window.sendMessage = async function() {
     return;
   }
 
-  const msgId = crypto.randomUUID();
+  // Taken off the composer while this send is out: a message composed and sent
+  // meanwhile is another message, with an id of its own.
+  const msgId = composedMsgId[channelId] ?? crypto.randomUUID();
+  delete composedMsgId[channelId];
   const now   = new Date().toISOString();
 
   // Optimistic: show message immediately, clear composer
@@ -1475,17 +1493,54 @@ window.sendMessage = async function() {
       () => crypto.randomUUID(),
     ));
   } catch (e) {
-    // Revert the optimistic message and give the member their text and files back.
-    pendingByChannel[channelId] = [...filesToAttach, ...pendingFor(channelId)];
-    if (stillHere()) {
-      messages = messages.filter(m => m.id !== msgId);
-      const composer = document.getElementById("composer-ta");
-      if (composer && !composer.value) composer.value = body;
-      renderPendingFiles();
-      renderMessages();
+    // Unknown outcome: read the message back by its pinned id. Found means an
+    // earlier send landed: the rest of the success path runs now, once.
+    let stored = null;
+    let readFailed = false;
+    if (!e?.forUser && outcomeUnknown(e)) {
+      try {
+        const [msg, att] = await Promise.all([
+          db("SELECT body FROM app_group_channels__messages WHERE id = ?", [msgId]),
+          db("SELECT file_id FROM app_group_channels__message_files WHERE message_id = ?", [msgId]),
+        ]);
+        if (msg.rows?.[0]) stored = { body: msg.rows[0].body ?? "", fileIds: (att.rows ?? []).map(r => r.file_id) };
+      } catch (readErr) { console.error("[group-channels] re-read failed", readErr); readFailed = true; }
     }
-    hubAlert(failText(e, "Couldn’t send the message — try again."));
-    return;
+    if (!stored) {
+      // Revert the optimistic message and give the member their text and files
+      // back, with the id the next send of them reuses.
+      composedMsgId[channelId] ??= msgId;
+      // With the answer lost, a stored message may name these files: removing
+      // one from the composer must not delete its bytes.
+      if (!e?.forUser && outcomeUnknown(e)) for (const f of filesToAttach) f.maybeSent = true;
+      pendingByChannel[channelId] = [...filesToAttach, ...pendingFor(channelId)];
+      if (stillHere()) {
+        messages = messages.filter(m => m.id !== msgId);
+        const composer = document.getElementById("composer-ta");
+        if (composer && !composer.value) composer.value = body;
+        renderPendingFiles();
+        renderMessages();
+      }
+      // The id is ours: with the read-back failed, a UNIQUE answer may be this
+      // send's own first try, so nothing is known — "try again", not "already exists".
+      if (readFailed) console.error(e);
+      hubAlert(failText(readFailed ? null : e, { action: "send the message", thing: "message" }));
+      return;
+    }
+    console.error("[group-channels] send answer lost, message found", e);
+    // What was changed since that first send is not in it: the text and any
+    // files attached since go back to the composer, to send as a new message.
+    const extra = filesToAttach.filter(f => !stored.fileIds.includes(f.id));
+    if (stored.body !== body || extra.length) {
+      if (extra.length) pendingByChannel[channelId] = [...extra, ...pendingFor(channelId)];
+      if (stillHere()) {
+        const composer = document.getElementById("composer-ta");
+        if (composer && !composer.value && stored.body !== body) composer.value = body;
+        renderPendingFiles();
+      }
+      hubAlert("Sent as first written — what changed is back in the message box.");
+    }
+    body = stored.body;
   }
 
   // Notify fire-and-forget — doesn't affect sender's UI
@@ -1664,7 +1719,7 @@ window.submitChannel = async function(existingId) {
       );
       // The hub answers a write it narrowed to nothing as a success with no
       // rows changed. The roster is left alone when the channel was not saved.
-      if (changed === 0) throw Object.assign(new Error("This channel can no longer be changed."), { forUser: true });
+      if (changed === 0) throw unchanged(await channelFound(existingId));
       if (membershipType === "custom") {
         await dbBatchAll([
           { sql: `DELETE FROM app_group_channels__channel_members WHERE channel_id = ?`, params: [existingId] },
@@ -1698,9 +1753,9 @@ window.submitChannel = async function(existingId) {
     renderMain();
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = existingId ? "Save" : "Create"; }
-    hubAlert(/unique/i.test(e.message ?? "")
-      ? "Another channel already uses that name."
-      : failText(e, "Couldn’t save the channel — try again."));
+    hubAlert(e?.code === "UNIQUE_CONSTRAINT" || /unique/i.test(e?.message ?? "")
+      ? (console.error(e), "Another channel already uses that name.")
+      : failText(e, { action: existingId ? "save the channel" : "create the channel", thing: "channel", found: e?.found }));
   }
 };
 
@@ -1720,10 +1775,10 @@ window.archiveChannel = async function(id) {
       `UPDATE app_group_channels__channels SET archived_at = ? WHERE id = ?`,
       [new Date().toISOString(), id]
     );
-    if (changed === 0) throw Object.assign(new Error("This channel can no longer be changed."), { forUser: true });
+    if (changed === 0) throw unchanged(await channelFound(id));
     await loadChannels();
   } catch (e) {
-    hubAlert(failText(e, "Couldn’t archive the channel — try again."));
+    hubAlert(failText(e, { action: "archive the channel", thing: "channel", found: e?.found }));
     return;
   }
   if (currentChannelId === id) currentChannelId = null;
@@ -1738,10 +1793,10 @@ window.unarchiveChannel = async function(id) {
       `UPDATE app_group_channels__channels SET archived_at = NULL WHERE id = ?`,
       [id]
     );
-    if (changed === 0) throw Object.assign(new Error("This channel can no longer be changed."), { forUser: true });
+    if (changed === 0) throw unchanged(await channelFound(id));
     await loadChannels();
   } catch (e) {
-    hubAlert(failText(e, "Couldn’t unarchive the channel — try again."));
+    hubAlert(failText(e, { action: "unarchive the channel", thing: "channel", found: e?.found }));
     return;
   }
   renderSidebar();
@@ -1793,9 +1848,9 @@ window.saveLeadershipGroup = async function() {
       body: JSON.stringify({ key: "leadership_group_id", value: groupId }),
     });
     if (!res.ok) {
-      let m = "Save failed";
-      try { m = (await res.json()).error ?? m; } catch {}
-      throw new Error(m);
+      let m = "Save failed", code;
+      try { const j = await res.json(); m = j.error ?? m; code = j.code; } catch {}
+      throw Object.assign(new Error(m), { status: res.status, code });
     }
     leadershipGroupId = groupId;
     closeModal();
@@ -1805,7 +1860,7 @@ window.saveLeadershipGroup = async function() {
     leadershipGroupId = prev;
     if (btn) { btn.disabled = false; btn.textContent = "Save"; }
     console.error(e);
-    hubAlert("Couldn’t save the leadership group — try again.");
+    hubAlert(failureLine(e, { action: "save the leadership group", thing: "setting" }));
   }
 };
 
